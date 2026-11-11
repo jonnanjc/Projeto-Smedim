@@ -1,0 +1,381 @@
+{% extends "fila/base_totem.html" %}
+{% block titulo %}Painel de chamada — Clínica SMEDIM{% endblock %}
+{% comment %}
+    Atualiza via fetch a cada 5s (script abaixo), não mais por meta refresh: recarregar a
+    página inteira faz o Chrome "esquecer" o clique em "Ativar som" e bloquear a voz
+    (speechSynthesis) e o bipe. O meta refresh fica só como plano B sem JavaScript.
+{% endcomment %}
+{% block head_extra %}<noscript><meta http-equiv="refresh" content="5"></noscript>{% endblock %}
+{% block estilo_extra %}
+    /* Dois tipos de chamada nesta tela: "senha" (recepção, ticket do totem) e
+       "agendamento" (o próprio profissional chamando o paciente pelo nome —
+       ver agenda.views.agendamento_chamar). --consultorio é uma cor nova, só
+       pra isso: --secundario já é o azul de "Prioritário" no totem, reusar
+       criaria confusão de significado entre as duas telas. */
+    :root { --consultorio: #b5651d; --consultorio-bg: #fdf1e6; }
+    .chamada-atual { text-align: center; margin: 10px 0 30px; }
+    .chamada-atual .rotulo-tipo {
+        display: inline-block; font-size: 15px; font-weight: 700; letter-spacing: 0.08em;
+        text-transform: uppercase; padding: 3px 14px; border-radius: 12px; margin-bottom: 10px;
+        background: var(--bg); color: var(--marca-escura); border: 1.5px solid var(--marca-escura);
+    }
+    .chamada-atual.tipo-consultorio .rotulo-tipo { background: var(--consultorio-bg); color: var(--consultorio); border-color: var(--consultorio); }
+    .chamada-atual .codigo { font-size: 120px; font-weight: 800; line-height: 1; color: var(--marca-escura); }
+    .chamada-atual .nome-paciente { font-size: 64px; font-weight: 800; line-height: 1.1; color: var(--consultorio); }
+    /* Guichê/sala é o que o paciente precisa achar de longe — quase do tamanho da senha. */
+    .chamada-atual .guiche { font-size: 72px; font-weight: 800; line-height: 1.1; margin-top: 14px; }
+    /* Na chamada pelo nome, o nome do paciente (64px) continua sendo o destaque. */
+    .chamada-atual.tipo-consultorio .guiche { font-size: 52px; }
+    .chamada-atual .detalhe { font-size: 22px; color: var(--texto-suave); margin-top: 8px; }
+    .chamada-atual .detalhe.especialidade { font-size: 32px; font-weight: 700; color: var(--texto); }
+    .historico { width: 100%; border-collapse: collapse; }
+    .historico td { padding: 10px 14px; font-size: 18px; border-top: 1px solid var(--borda); }
+    .historico td.codigo-historico { font-weight: 700; width: 90px; }
+    .historico tr.tipo-consultorio td.codigo-historico { color: var(--consultorio); }
+    .som-toggle {
+        position: fixed;
+        top: 16px;
+        right: 20px;
+        background: #fff;
+        border: 2px solid var(--borda);
+        border-radius: 30px;
+        padding: 8px 18px;
+        font: inherit;
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--texto-suave);
+        cursor: pointer;
+    }
+    .som-toggle.ligado { border-color: var(--marca); color: var(--marca-escura); }
+{% endblock %}
+{% block conteudo %}
+    <button type="button" class="som-toggle" id="somToggle" onclick="alternarSom()">🔈 Som desligado</button>
+
+    {% if chamada_atual %}
+        <div class="chamada-atual{% if chamada_atual.tipo_chamada != 'senha' %} tipo-consultorio{% endif %}">
+            {% if chamada_atual.tipo_chamada == "recepcao_propria" %}
+                {% comment %}
+                    Leva chamada pra Recepção 2 (sem tela própria lá — é este painel que avisa): o
+                    primeiro entra no consultório, os demais esperam sentados. Ver
+                    fila.views._chamadas_recepcao_propria.
+                {% endcomment %}
+                <div class="rotulo-tipo">{{ chamada_atual.nome_recepcao }}</div>
+                <div class="nome-paciente">{{ chamada_atual.primeiro.nome_exibicao_publica }}</div>
+                <div class="guiche">Entrar no {{ chamada_atual.sala_chamada.nome }}</div>
+                <div class="detalhe">{{ chamada_atual.profissional.nome }}</div>
+                {% if chamada_atual.demais %}
+                    <div class="detalhe" style="margin-top:22px;">
+                        Aguardem sentados na {{ chamada_atual.nome_recepcao }}:
+                        <strong>{% for paciente in chamada_atual.demais %}{{ paciente.nome_exibicao_publica }}{% if not forloop.last %}, {% endif %}{% endfor %}</strong>
+                    </div>
+                {% endif %}
+            {% elif chamada_atual.tipo_chamada == "agendamento" %}
+                <div class="rotulo-tipo">Consultório</div>
+                <div class="nome-paciente">{{ chamada_atual.paciente.nome_exibicao_publica }}</div>
+                <div class="guiche">{{ chamada_atual.sala_chamada.nome }}</div>
+                <div class="detalhe">{{ chamada_atual.profissional.nome }}</div>
+            {% else %}
+                <div class="rotulo-tipo">Recepção</div>
+                <div class="codigo">{{ chamada_atual.codigo }}</div>
+                <div class="guiche">{{ chamada_atual.guiche.nome }}</div>
+                <div class="detalhe especialidade">{{ chamada_atual.rotulo_atendimento }}</div>
+            {% endif %}
+        </div>
+        <span id="dadosChamada" data-chave="{{ chamada_atual.tipo_chamada }}-{{ chamada_atual.pk }}-{{ chamada_atual.chamado_em|date:'U' }}"
+              data-tipo="{{ chamada_atual.tipo_chamada }}"
+              data-voz-url="{% url 'fila:painel_voz' chamada_atual.tipo_chamada chamada_atual.pk %}"
+              {% if chamada_atual.tipo_chamada == "senha" %}
+                  data-codigo="{{ chamada_atual.codigo }}" data-local="{{ chamada_atual.guiche.nome|default:'' }}"
+              {% elif chamada_atual.tipo_chamada == "recepcao_propria" %}
+                  data-nome="{{ chamada_atual.primeiro.nome_exibicao_publica }}" data-local="{{ chamada_atual.sala_chamada.nome|default:'' }}"
+                  data-demais="{% for paciente in chamada_atual.demais %}{{ paciente.nome_exibicao_publica }}{% if not forloop.last %}|{% endif %}{% endfor %}"
+                  data-recepcao="{{ chamada_atual.nome_recepcao }}"
+              {% else %}
+                  data-nome="{{ chamada_atual.paciente.nome_exibicao_publica }}" data-local="{{ chamada_atual.sala_chamada.nome|default:'' }}"
+              {% endif %}
+              hidden></span>
+    {% else %}
+        <p class="totem-subtitulo">Nenhuma chamada ainda hoje.</p>
+    {% endif %}
+
+    {% if chamadas_anteriores %}
+        <table class="historico">
+            {% for chamada in chamadas_anteriores %}
+                <tr{% if chamada.tipo_chamada != 'senha' %} class="tipo-consultorio"{% endif %}>
+                    {% if chamada.tipo_chamada == "recepcao_propria" %}
+                        <td class="codigo-historico">{{ chamada.nome_recepcao }}</td>
+                        <td>
+                            {{ chamada.primeiro.nome_exibicao_publica }}{% for paciente in chamada.demais %}, {{ paciente.nome_exibicao_publica }}{% endfor %}
+                        </td>
+                        <td>{{ chamada.profissional.nome }}</td>
+                    {% elif chamada.tipo_chamada == "agendamento" %}
+                        <td class="codigo-historico">{{ chamada.sala_chamada.nome }}</td>
+                        <td>{{ chamada.paciente.nome_exibicao_publica }}</td>
+                        <td>{{ chamada.profissional.nome }}</td>
+                    {% else %}
+                        <td class="codigo-historico">{{ chamada.codigo }}</td>
+                        <td>{{ chamada.rotulo_atendimento }}</td>
+                        <td>{{ chamada.guiche.nome }}</td>
+                    {% endif %}
+                </tr>
+            {% endfor %}
+        </table>
+    {% endif %}
+{% endblock %}
+{% block rodape %}Aguarde — fique atento à chamada{% endblock %}
+{% block script_extra %}
+<script>
+    // Painel roda sem interação nenhuma — por isso o som começa DESLIGADO:
+    // navegadores bloqueiam áudio/voz automáticos sem um clique antes (autoplay
+    // policy). O clique em "Ativar som" liga o som pra esta tela (guardado em
+    // localStorage) e deixa o navegador "liberado" pra tocar sozinho depois —
+    // mas só enquanto a página não for recarregada por inteiro, por isso a
+    // atualização a cada 5s troca só o miolo da tela via fetch. Se o PC reiniciar,
+    // o navegador volta a bloquear: o botão mostra "Toque para ativar o som".
+    // Compara pk+horário da última chamada com o que já foi anunciado
+    // (localStorage) pra anunciar só quando muda de verdade.
+    (function () {
+        var CHAVE_SOM = "painelEsperaSomLigado";
+        var CHAVE_ULTIMA = "painelEsperaUltimaChamadaAnunciada";
+        var INTERVALO_ATUALIZACAO_MS = 5000;
+        var REPETICOES_VOZ = 2;
+
+        var ctxAudio = null;
+        try {
+            var Ctx = window.AudioContext || window.webkitAudioContext;
+            ctxAudio = new Ctx();
+        } catch (erro) {
+            // navegador sem suporte a Web Audio — só não toca o bipe
+        }
+
+        function somLigado() {
+            return localStorage.getItem(CHAVE_SOM) === "1";
+        }
+
+        // "suspended" = navegador ainda esperando um clique pra liberar áudio.
+        function audioBloqueado() {
+            return ctxAudio !== null && ctxAudio.state !== "running";
+        }
+
+        function vozPortugues() {
+            var vozes = window.speechSynthesis.getVoices();
+            var preferida = null;
+            for (var i = 0; i < vozes.length; i++) {
+                var lang = (vozes[i].lang || "").toLowerCase().replace("_", "-");
+                if (lang === "pt-br") {
+                    // Voz do Google é mais natural; Microsoft (Maria/Francisca) funciona offline.
+                    if (vozes[i].name.indexOf("Google") !== -1) return vozes[i];
+                    if (!preferida) preferida = vozes[i];
+                } else if (!preferida && lang.indexOf("pt") === 0) {
+                    preferida = vozes[i];
+                }
+            }
+            return preferida;
+        }
+
+        function falar(texto, repeticoes) {
+            if (!window.speechSynthesis || !texto) return;
+            window.speechSynthesis.cancel();
+            var voz = vozPortugues();
+            for (var i = 0; i < (repeticoes || 1); i++) {
+                var fala = new SpeechSynthesisUtterance(texto);
+                fala.lang = "pt-BR";
+                fala.rate = 0.9;
+                if (voz) fala.voice = voz;
+                window.speechSynthesis.speak(fala);
+            }
+        }
+
+        // "P007" -> "P 0 0 7": a voz lê letra por letra e dígito por dígito
+        // ("pê zero zero sete"), igual está no papel, em vez de "pê sete".
+        function soletrarCodigo(codigo) {
+            return (codigo || "").split("").join(" ");
+        }
+
+        function textoDaChamada(dados) {
+            var tipo = dados.getAttribute("data-tipo");
+            var local = dados.getAttribute("data-local") || "";
+            if (tipo === "senha") {
+                return "Senha " + soletrarCodigo(dados.getAttribute("data-codigo")) + ". " + local;
+            }
+            // Painel é público: na voz só o primeiro nome (na tela já é primeiro + último).
+            var primeiroNome = (dados.getAttribute("data-nome") || "").split(" ")[0];
+            if (tipo === "recepcao_propria") {
+                // Leva da Recepção 2: o primeiro entra, os demais são chamados pra aguardar lá.
+                var texto = local ? primeiroNome + ", entrar no " + local + "." : primeiroNome + ".";
+                var demais = (dados.getAttribute("data-demais") || "").split("|").filter(Boolean)
+                    .map(function (nome) { return nome.split(" ")[0]; });
+                if (demais.length) texto += " " + demais.join(", ") + ". Aguardar na " + dados.getAttribute("data-recepcao") + ".";
+                return texto;
+            }
+            if (!local) return primeiroNome;
+            return primeiroNome + ", " + local;
+        }
+
+        // Voz gerada no SERVIDOR (fila/voz.py): um .wav comum, que toca em qualquer navegador
+        // — a voz do próprio navegador (speechSynthesis, acima) não funciona na TV box. Se o
+        // servidor não tiver a voz instalada (503) ou algo falhar, cai pra voz do navegador.
+        var URL_VOZ_TESTE = "{% url 'fila:painel_voz' 'teste' '0' %}";
+        var elementoAudio = null;  // <audio> reaproveitado: liberado pelo clique em "Ativar som"
+
+        function tocarComElemento(dadosAudio, repeticoes, aoFalhar) {
+            if (!elementoAudio) elementoAudio = new Audio();
+            var restantes = repeticoes;
+            elementoAudio.onended = function () {
+                restantes--;
+                if (restantes > 0) setTimeout(function () { elementoAudio.play(); }, 600);
+            };
+            elementoAudio.src = URL.createObjectURL(new Blob([dadosAudio], { type: "audio/wav" }));
+            var tocando = elementoAudio.play();
+            if (tocando && tocando.catch) tocando.catch(aoFalhar);
+        }
+
+        function tocarComWebAudio(dadosAudio, repeticoes, aoFalhar) {
+            ctxAudio.decodeAudioData(dadosAudio, function (buffer) {
+                var inicio = ctxAudio.currentTime + 0.05;
+                for (var i = 0; i < repeticoes; i++) {
+                    var fonte = ctxAudio.createBufferSource();
+                    fonte.buffer = buffer;
+                    fonte.connect(ctxAudio.destination);
+                    fonte.start(inicio);
+                    inicio += buffer.duration + 0.6;
+                }
+            }, aoFalhar);
+        }
+
+        function falarPeloServidor(url, textoReserva, repeticoes) {
+            var reserva = function () { falar(textoReserva, repeticoes); };
+            fetch(url, { cache: "no-store" })
+                .then(function (resposta) {
+                    if (!resposta.ok) throw new Error("HTTP " + resposta.status);
+                    return resposta.arrayBuffer();
+                })
+                .then(function (dadosAudio) {
+                    if (ctxAudio && ctxAudio.state === "running") {
+                        tocarComWebAudio(dadosAudio, repeticoes, function () {
+                            tocarComElemento(dadosAudio, repeticoes, reserva);
+                        });
+                    } else {
+                        tocarComElemento(dadosAudio, repeticoes, reserva);
+                    }
+                })
+                .catch(reserva);
+        }
+
+        function anunciar(dados) {
+            tocarBipe();
+            var texto = textoDaChamada(dados);
+            var url = dados.getAttribute("data-voz-url");
+            setTimeout(function () {
+                if (url) falarPeloServidor(url, texto, REPETICOES_VOZ);
+                else falar(texto, REPETICOES_VOZ);
+            }, 700);
+        }
+
+        function tocarBipe() {
+            if (!ctxAudio) return;
+            try {
+                var ctx = ctxAudio;
+                var tocarNota = function (freq, inicio, duracao) {
+                    var osc = ctx.createOscillator();
+                    var ganho = ctx.createGain();
+                    osc.type = "sine";
+                    osc.frequency.value = freq;
+                    ganho.gain.setValueAtTime(0.0001, ctx.currentTime + inicio);
+                    ganho.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + inicio + 0.02);
+                    ganho.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + inicio + duracao);
+                    osc.connect(ganho);
+                    ganho.connect(ctx.destination);
+                    osc.start(ctx.currentTime + inicio);
+                    osc.stop(ctx.currentTime + inicio + duracao + 0.05);
+                };
+                tocarNota(880, 0, 0.18);
+                tocarNota(659, 0.2, 0.3);
+            } catch (erro) {
+                // navegador sem suporte a Web Audio — só não toca, resto da tela segue normal
+            }
+        }
+
+        function atualizarBotao() {
+            var botao = document.getElementById("somToggle");
+            if (!botao) return;
+            if (somLigado() && audioBloqueado()) {
+                botao.textContent = "🔈 Toque para ativar o som";
+                botao.classList.remove("ligado");
+            } else if (somLigado()) {
+                botao.textContent = "🔊 Som ligado";
+                botao.classList.add("ligado");
+            } else {
+                botao.textContent = "🔈 Ativar som";
+                botao.classList.remove("ligado");
+            }
+        }
+
+        window.alternarSom = function () {
+            // Já estava ligado mas o navegador bloqueou (PC reiniciado): o clique
+            // só libera o áudio, não desliga.
+            var ligar = !somLigado() || audioBloqueado();
+            localStorage.setItem(CHAVE_SOM, ligar ? "1" : "0");
+            if (ligar && ctxAudio) {
+                ctxAudio.resume().then(atualizarBotao);
+            }
+            atualizarBotao();
+            if (ligar) {
+                tocarBipe();
+                // Ainda dentro do clique: libera também o <audio> reaproveitado (alguns
+                // navegadores de TV box só deixam tocar <audio> que já tocou num clique).
+                if (!elementoAudio) elementoAudio = new Audio();
+                elementoAudio.onended = null;
+                elementoAudio.src = URL_VOZ_TESTE;
+                var liberado = elementoAudio.play();
+                if (liberado && liberado.catch) {
+                    liberado.catch(function () { falar("Som ativado", 1); });
+                }
+            } else if (window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+            }
+        };
+
+        function verificarChamada() {
+            var dados = document.getElementById("dadosChamada");
+            if (!dados) return;
+            var chave = dados.getAttribute("data-chave");
+            if (chave !== localStorage.getItem(CHAVE_ULTIMA)) {
+                if (somLigado()) anunciar(dados);
+                localStorage.setItem(CHAVE_ULTIMA, chave);
+            }
+        }
+
+        var atualizando = false;
+        function atualizarTela() {
+            if (atualizando) return;
+            atualizando = true;
+            fetch(window.location.href, { cache: "no-store" })
+                .then(function (resposta) {
+                    if (!resposta.ok) throw new Error("HTTP " + resposta.status);
+                    return resposta.text();
+                })
+                .then(function (html) {
+                    var novo = new DOMParser().parseFromString(html, "text/html").querySelector(".totem-corpo");
+                    var atual = document.querySelector(".totem-corpo");
+                    if (novo && atual) {
+                        atual.innerHTML = novo.innerHTML;
+                        atualizarBotao();
+                        verificarChamada();
+                    }
+                })
+                .catch(function () {
+                    // servidor fora do ar/rede caiu: mantém a última tela e tenta de novo no próximo ciclo
+                })
+                .then(function () { atualizando = false; });
+        }
+
+        // Algumas vozes só ficam disponíveis depois desse evento.
+        if (window.speechSynthesis) window.speechSynthesis.onvoiceschanged = function () {};
+
+        atualizarBotao();
+        verificarChamada();
+        setInterval(atualizarTela, INTERVALO_ATUALIZACAO_MS);
+    })();
+</script>
+{% endblock %}

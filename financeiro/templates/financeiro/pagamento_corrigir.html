@@ -1,0 +1,80 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Corrigir pagamento — {{ agendamento.paciente.nome_completo }} — Clínica SMEDIM{% endblock %}
+{% block conteudo %}
+    <h2 style="margin:0 0 6px;">Corrigir pagamento</h2>
+    <p style="color:var(--texto-suave);margin:0 0 12px;">
+        <strong>{{ agendamento.paciente.nome_completo }}</strong> com {{ agendamento.profissional.nome }},
+        em {{ agendamento.data_hora_inicio|date:"d/m/Y" }} ({{ agendamento.horario_exibicao }}) · {{ agendamento.plano_exibicao }}
+    </p>
+
+    <p style="margin:0 0 6px;"><strong>O que foi cobrado:</strong></p>
+    <ul style="margin:0 0 14px;">
+        {% for item in itens %}
+            <li>{{ item.procedimento.nome }}{% if item.quantidade != 1 %} x{{ item.quantidade }}{% endif %} —
+                {% if item.pacote_vendido_id %}já pago no pacote{% elif item.eh_retorno %}retorno grátis{% elif item.valor_cobrado is not None %}R$ {{ item.valor_cobrado }}{% else %}sem valor registrado{% endif %}</li>
+        {% endfor %}
+        {% for pacote in pacotes_vendidos %}
+            <li>Venda do pacote "{{ pacote.nome }}" — R$ {{ pacote.valor }}</li>
+        {% endfor %}
+        {% if not itens and not pacotes_vendidos %}<li>Nenhum procedimento registrado.</li>{% endif %}
+    </ul>
+
+    <p style="margin:0 0 6px;"><strong>Como está registrado:</strong></p>
+    <ul style="margin:0 0 14px;">
+        {% for p in pagamentos %}
+            <li>{{ p.get_forma_pagamento_display }} — R$ {{ p.valor }}{% if p.valor_recebido is not None %} (recebido R$ {{ p.valor_recebido }}){% endif %}{% if p.parcelas %} em {{ p.parcelas }}x{% endif %}
+                <span style="font-size:12px;color:var(--texto-suave);">registrado em {{ p.criado_em|date:"d/m/Y H:i" }}</span></li>
+        {% endfor %}
+    </ul>
+
+    {% if copias %}
+        <div class="mensagem warning">
+            Este pagamento foi <strong>gravado em dobro</strong> (o botão de registrar foi enviado duas vezes).
+            O valor certo é <strong>R$ {{ total }}</strong>. Confira as formas abaixo e clique em salvar: as
+            {{ copias|length }} linha(s) repetida(s) serão apagadas.
+        </div>
+    {% endif %}
+
+    {% if bloqueio %}
+        <div class="mensagem error">Este pagamento não pode ser corrigido aqui: {{ bloqueio }}</div>
+        <a href="{{ voltar_url }}">Voltar</a>
+    {% else %}
+        <p style="font-size:20px;font-weight:700;margin:0 0 14px;">Total registrado: R$ {{ total }}
+            <span style="font-size:13px;font-weight:400;color:var(--texto-suave);">
+                {% if permite_mudar_total %}(pode mudar — o novo total é a soma das formas; informe o motivo){% else %}(não muda — este pagamento inclui venda de pacote; para mudar o valor, estorne){% endif %}
+            </span>
+        </p>
+        <form method="post">
+            {% csrf_token %}
+            {% for erro in form.non_field_errors %}<div class="mensagem error">{{ erro }}</div>{% endfor %}
+            {% for n in "12" %}
+                <fieldset style="border:1px solid var(--borda);border-radius:8px;padding:12px 16px;margin:0 0 14px;">
+                    <legend style="padding:0 6px;font-weight:600;">{{ n }}ª forma{% if n == "2" %} (deixe em branco se foi uma forma só){% endif %}</legend>
+                    {% for campo in form %}
+                        {% if campo.name|slice:"-1:" == n %}
+                            <div class="campo-bloco">
+                                {{ campo.label_tag }} {{ campo }}
+                                {% for erro in campo.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </fieldset>
+            {% endfor %}
+            {% if permite_mudar_total %}
+                <div class="campo-bloco">
+                    {{ form.motivo.label_tag }} {{ form.motivo }}
+                    <div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">{{ form.motivo.help_text }}</div>
+                    {% for erro in form.motivo.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+                </div>
+            {% endif %}
+            <p style="font-size:12px;color:var(--texto-suave);">
+                Mudando o total, o valor cobrado dos procedimentos deste atendimento é ajustado junto (o fechamento
+                continua batendo). Com uma forma só, o valor pode ficar em branco (vale o total registrado). "Valor recebido" só vale para cartão;
+                "Parcelas", só para crédito. Todas as formas (dinheiro, cartão, Pix) ficam pendentes de repasse
+                ao profissional até o pagamento ser registrado em Repasses.
+            </p>
+            <button type="submit" class="botao">Salvar correção</button>
+            <a href="{{ voltar_url }}" style="margin-left:12px;">Voltar</a>
+        </form>
+    {% endif %}
+{% endblock %}

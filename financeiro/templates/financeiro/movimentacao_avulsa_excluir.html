@@ -1,0 +1,17 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Excluir movimentação avulsa — Clínica SMEDIM{% endblock %}
+{% block conteudo %}
+    <h2>Excluir movimentação avulsa</h2>
+    <p>
+        Tem certeza que deseja excluir esta <strong>{{ movimentacao.get_tipo_display|lower }}</strong> de
+        <strong>R$ {{ movimentacao.valor }}</strong> — {{ movimentacao.descricao }}
+        ({{ movimentacao.data|date:"d/m/Y" }})?
+        <br><span style="color:#c0392b;font-weight:600;">Esta ação não pode ser desfeita.</span>
+    </p>
+
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="botao" style="background:#c0392b;">Sim, excluir</button>
+        <a href="{% url 'financeiro:movimentacao_avulsa_lista' %}" style="margin-left:12px;">Voltar</a>
+    </form>
+{% endblock %}

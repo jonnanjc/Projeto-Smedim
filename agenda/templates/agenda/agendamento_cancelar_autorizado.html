@@ -1,0 +1,37 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Cancelar atendimento autorizado — Clínica SMEDIM{% endblock %}
+{% block conteudo %}
+    <h2>Cancelar atendimento já autorizado</h2>
+    <p>
+        <strong>Paciente:</strong> {{ agendamento.paciente.nome_completo }}<br>
+        <strong>Profissional:</strong> {{ agendamento.profissional.nome }}<br>
+        <strong>Data:</strong> {{ agendamento.data_hora_inicio|date:"d/m/Y" }} ({{ agendamento.horario_exibicao }})<br>
+        <strong>Plano:</strong> {{ agendamento.plano_exibicao }}<br>
+        <strong>Situação atual:</strong> {{ agendamento.get_status_display }}
+    </p>
+
+    {% if impedimento %}
+        <div class="mensagem error">Não é possível cancelar: {{ impedimento }}</div>
+        <a href="{{ destino }}">Voltar</a>
+    {% else %}
+        <p>
+            O atendimento sai da produção{% if agendamento.forma_atendimento == "CONVENIO" %} e a guia de sessões
+            usada volta a ter saldo{% endif %}. Ele fica marcado como Cancelado, sem apagar o histórico, e o motivo
+            fica registrado nas observações e no log de auditoria.
+        </p>
+        {% if agendamento.status == "REALIZADO" %}
+            <div class="mensagem info">Este atendimento já está marcado como atendido pelo profissional.</div>
+        {% endif %}
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="proximo" value="{{ destino }}">
+            <div class="campo-bloco">
+                <label for="motivo">Motivo do cancelamento:</label>
+                <textarea name="motivo" id="motivo" rows="3" class="campo" required>{{ motivo }}</textarea>
+                {% if erro_motivo %}<div class="mensagem error" style="margin-top:6px;">{{ erro_motivo }}</div>{% endif %}
+            </div>
+            <button type="submit" class="botao" style="background:#c0392b;">Sim, cancelar atendimento</button>
+            <a href="{{ destino }}" style="margin-left:12px;">Voltar</a>
+        </form>
+    {% endif %}
+{% endblock %}

@@ -1,0 +1,135 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Guias pendentes — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <style>
+        .botao-mini {
+            display: inline-block; background: none; border: 1px solid var(--borda); color: var(--texto);
+            border-radius: 14px; padding: 4px 11px; font-size: 12px; line-height: 1.5; cursor: pointer;
+        }
+        .botao-mini:hover { border-color: var(--marca); }
+    </style>
+    <h2 style="margin:0;">Guias pendentes{% if so_proprios %} — meus atendimentos{% endif %}</h2>
+    <p style="font-size:13px;color:var(--texto-suave);">
+        O convênio paga a sessão em unidades de 30 minutos — uma sessão de 1h vale 2 sessões, cada uma com a sua guia.
+        No dia do atendimento só a 1ª guia é autorizada (junto com o atendimento); as demais aparecem aqui até serem
+        autorizadas. Cada guia só conta na produção do profissional depois de marcada como autorizada.
+        Aqui também ficam as guias autorizadas <strong>sem assinatura</strong> do paciente, até ele assinar.
+    </p>
+
+    <form method="get" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin:12px 0;">
+        {% if not so_proprios %}
+        <div>
+            <label>Profissional:</label>
+            <select name="profissional" class="campo" onchange="this.form.submit()">
+                <option value="">Todos</option>
+                {% for profissional in profissionais %}
+                    <option value="{{ profissional.pk }}" {% if profissional_selecionado == profissional.pk|stringformat:"s" %}selected{% endif %}>{{ profissional.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+        <div>
+            <label>Mostrar:</label>
+            <select name="situacao" class="campo" onchange="this.form.submit()">
+                <option value="">Tudo pendente (autorização ou assinatura)</option>
+                <option value="autorizacao" {% if situacao == "autorizacao" %}selected{% endif %}>Só falta autorizar guia</option>
+                <option value="assinatura" {% if situacao == "assinatura" %}selected{% endif %}>Só falta assinatura</option>
+                <option value="todas" {% if situacao == "todas" %}selected{% endif %}>Pendentes e já autorizadas/assinadas (últimos 60 dias)</option>
+            </select>
+        </div>
+    </form>
+
+    <table>
+        <tr>
+            <th>Data / horário</th>
+            <th>Paciente</th>
+            <th>Profissional</th>
+            <th>Convênio</th>
+            <th>Sessão</th>
+            <th>Guias</th>
+            <th>Assinatura</th>
+            <th></th>
+        </tr>
+        {% for item in itens %}
+            {% with ag=item.agendamento %}
+            <tr>
+                <td>{{ ag.data_hora_inicio|date:"d/m/Y H:i" }}</td>
+                <td>{{ ag.paciente.nome_completo }}</td>
+                <td>{{ ag.profissional.nome }}</td>
+                <td>{{ ag.convenio.nome|default:"—" }}</td>
+                <td>{{ item.procedimento.nome }}</td>
+                <td>
+                    <strong>{{ item.guias_autorizadas }} de {{ item.quantidade }}</strong> autorizada{{ item.guias_autorizadas|pluralize }}
+                    {% for extra in item.guias_extras.all %}
+                        {% if extra.numero <= item.guias_autorizadas %}<div style="font-size:12px;color:var(--texto-suave);">{{ extra.numero }}ª guia autorizada em {{ extra.autorizada_em|date:"d/m/Y" }}</div>{% endif %}
+                    {% endfor %}
+                    {% if not item.atendimento_autorizado %}
+                        <div style="font-size:12px;color:var(--texto-suave);">Atendimento ainda não autorizado ({{ ag.get_status_display }})</div>
+                    {% endif %}
+                </td>
+                <td style="min-width:140px;">
+                    {% for numero in item.assinaturas_pendentes %}
+                        <div style="margin:2px 0;">
+                            <span style="font-size:12px;font-weight:600;color:#c0392b;">✍ {{ numero }}ª guia sem assinatura</span>
+                            {% if pode_autorizar %}
+                                <form method="post" action="{% url 'agenda:guia_autorizar' item.pk 'assinou' %}" style="display:inline;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
+                                    <input type="hidden" name="numero" value="{{ numero }}">
+                                    <label style="font-size:12px;color:var(--texto-suave);">assinou em
+                                        <input type="date" name="assinada_em" value="{{ hoje|date:'Y-m-d' }}" max="{{ hoje|date:'Y-m-d' }}" required style="font-size:12px;">
+                                    </label>
+                                    <button type="submit" class="botao-mini">Assinou</button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    {% empty %}
+                        {% if not item.assinaturas_registradas %}
+                            <span style="font-size:12px;color:var(--texto-suave);">{% if item.atendimento_autorizado %}Assinada{% else %}—{% endif %}</span>
+                        {% endif %}
+                    {% endfor %}
+                    {# Registro de quando foi assinada a guia que estava sem assinatura (2026-10-16). #}
+                    {% for numero, assinada_em, quem in item.assinaturas_registradas %}
+                        <div style="font-size:12px;color:var(--texto-suave);">
+                            ✔ {{ numero }}ª guia assinada em {{ assinada_em|date:"d/m/Y" }}{% if quem %} (registrado por {{ quem.get_full_name|default:quem.username }}){% endif %}
+                        </div>
+                    {% endfor %}
+                </td>
+                <td style="min-width:150px;">
+                    {% if so_proprios %}
+                    {% elif item.trava_financeira %}
+                        <span style="font-size:12px;color:#c0392b;">Bloqueado: {{ item.trava_financeira }}</span>
+                    {% elif pode_autorizar %}
+                        {% if item.guias_pendentes %}
+                        <form method="post" action="{% url 'agenda:guia_autorizar' item.pk 'autorizar' %}" style="display:inline;">
+                            {% csrf_token %}
+                            <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
+                            <label style="font-size:12px;color:var(--texto-suave);">autorizada em
+                                <input type="date" name="autorizada_em" value="{{ hoje|date:'Y-m-d' }}" max="{{ hoje|date:'Y-m-d' }}" required style="font-size:12px;">
+                            </label>
+                            <label style="font-size:12px;color:var(--texto-suave);">
+                                <input type="checkbox" name="sem_assinatura" value="1"> sem assinatura
+                            </label>
+                            <button type="submit" class="botao-mini" style="margin:2px 0;">Marcar {{ item.guias_autorizadas|add:1 }}ª guia autorizada</button>
+                        </form>
+                        {% else %}
+                            <span style="font-size:12px;color:var(--texto-suave);">Todas autorizadas</span>
+                        {% endif %}
+                        {% if item.guias_autorizadas > 1 %}
+                            <form method="post" action="{% url 'agenda:guia_autorizar' item.pk 'desfazer' %}" style="display:inline;">
+                                {% csrf_token %}
+                                <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
+                                <button type="submit" class="botao-mini" style="margin:2px 0;">Desfazer</button>
+                            </form>
+                        {% endif %}
+                    {% endif %}
+                </td>
+            </tr>
+            {% endwith %}
+        {% empty %}
+            <tr><td colspan="8"><em>Nenhuma guia {% if situacao == "todas" %}de sessão{% else %}pendente{% endif %}{% if profissional_selecionado and not so_proprios %} para este profissional{% endif %}.</em></td></tr>
+        {% endfor %}
+    </table>
+    {% include 'accounts/_paginacao.html' %}
+{% endblock %}

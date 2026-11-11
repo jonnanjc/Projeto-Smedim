@@ -1,0 +1,56 @@
+{% comment %}
+Uma seção do painel "Meu desempenho" — recebe 'dados' (dict devolvido por
+agenda.views._padrao_atendimento), 'titulo' (cabeçalho da seção) e 'epoca' (texto
+usado na mensagem de "nenhum atendimento ainda"). Incluído duas vezes por
+meu_desempenho.html: uma pro mês selecionado, outra pro histórico completo.
+{% endcomment %}
+<div class="secao">
+    <div class="secao-titulo">
+        {{ titulo }}
+        <span class="legenda">{{ dados.total }} atendimento{{ dados.total|pluralize }}{% if dados.total_retorno %} · {{ dados.total_retorno }} retorno{{ dados.total_retorno|pluralize }}{% endif %}</span>
+    </div>
+
+    {% if dados.total %}
+        <div class="grupo-procedimento">
+            <div class="grupo-nome">
+                Por dia da semana
+                {% if dados.dia_mais_frequente %}<span class="qtd">mais frequente: {{ dados.dia_mais_frequente.rotulo }}</span>{% endif %}
+            </div>
+            {% for item in dados.dias_semana %}
+                <div class="barra-linha">
+                    <span class="barra-rotulo">{{ item.rotulo }}</span>
+                    <span class="barra-trilho"><span class="barra-preenchida" style="width:{{ item.percentual }}%;"></span></span>
+                    <span class="barra-valor">{{ item.quantidade }} ({{ item.percentual }}%)</span>
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="grupo-procedimento">
+            <div class="grupo-nome">Por período do dia</div>
+            {% for item in dados.periodos %}
+                <div class="barra-linha">
+                    <span class="barra-rotulo">{{ item.rotulo }}</span>
+                    <span class="barra-trilho"><span class="barra-preenchida" style="width:{{ item.percentual }}%;"></span></span>
+                    <span class="barra-valor">{{ item.quantidade }} ({{ item.percentual }}%)</span>
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="grupo-procedimento">
+            <div class="grupo-nome">
+                Por convênio
+                {% if dados.convenios.0 %}<span class="qtd">mais atendido: {{ dados.convenios.0.nome }}</span>{% endif %}
+            </div>
+            {% for item in dados.convenios %}
+                <div class="barra-linha">
+                    <span class="barra-rotulo" title="{{ item.nome }}">{{ item.nome|truncatechars:14 }}</span>
+                    <span class="barra-trilho"><span class="barra-preenchida" style="width:{{ item.percentual }}%;"></span></span>
+                    <span class="barra-valor">{{ item.quantidade }} ({{ item.percentual }}%)</span>
+                </div>
+            {% endfor %}
+            <p style="color:var(--relatorio-texto-suave);font-size:11px;margin:6px 0 0;">"Particular" entra como mais uma categoria aqui, pra dar a proporção completa de como você atende.</p>
+        </div>
+    {% else %}
+        <p style="color:var(--relatorio-texto-suave);font-size:13px;">Nenhum atendimento {{ epoca }} ainda.</p>
+    {% endif %}
+</div>

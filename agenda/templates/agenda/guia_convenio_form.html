@@ -1,0 +1,23 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Corrigir guia {{ guia.numero }} — Clínica SMEDIM{% endblock %}
+{% block conteudo %}
+    <h2 style="margin:0 0 6px;">Corrigir guia {{ guia.numero }}</h2>
+    <p style="color:var(--texto-suave);margin:0 0 12px;">
+        {{ guia.paciente.nome_completo }} — {{ guia.procedimento.nome }} ({{ guia.convenio.nome }}).
+        Já usadas: <strong>{{ guia.sessoes_usadas }} de {{ guia.quantidade_sessoes }}</strong>.
+    </p>
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="proximo" value="{{ destino }}">
+        {% for campo in form %}
+            <div class="campo-bloco">
+                {{ campo.label_tag }}
+                {{ campo }}
+                {% if campo.help_text %}<div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">{{ campo.help_text }}</div>{% endif %}
+                {% for erro in campo.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+            </div>
+        {% endfor %}
+        <button type="submit" class="botao">Salvar</button>
+        <a href="{{ destino }}" style="margin-left:12px;">Cancelar</a>
+    </form>
+{% endblock %}

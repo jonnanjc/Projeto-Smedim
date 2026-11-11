@@ -1,0 +1,220 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Central de Atendimento — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <style>
+        .central-passos { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+        .central-passo {
+            display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+            border: 1px solid var(--borda); font-size: 13px; color: var(--texto-suave);
+        }
+        .central-passo.ativo { border-color: var(--marca-escura); color: var(--marca-escura); font-weight: 700; }
+        .central-passo.feito { color: var(--marca-escura); }
+
+        .cartoes-especialidade, .cartoes-profissional { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0 24px; }
+        .cartao-opcao {
+            display: block; text-decoration: none; color: var(--texto); border: 1px solid var(--borda);
+            border-radius: 10px; padding: 14px 18px; min-width: 180px; background: var(--bg-cartao);
+        }
+        .cartao-opcao:hover { border-color: var(--marca); }
+        .cartao-opcao.selecionado { border-color: var(--marca-escura); background: var(--marca-clara); color: #10241c; }
+        html[data-tema="escuro"] .cartao-opcao.selecionado { background: #234034; color: #eef3f0; }
+        .cartao-opcao strong { display: block; font-size: 15px; margin-bottom: 2px; }
+        .cartao-opcao span { font-size: 12px; color: var(--texto-suave); }
+        .cartao-opcao.selecionado span { color: inherit; opacity: 0.85; }
+
+        .tabela-disponibilidade-wrap { overflow-x: auto; border: 1px solid var(--borda); border-radius: 10px; }
+        table.disponibilidade { border-collapse: collapse; width: 100%; }
+        table.disponibilidade th, table.disponibilidade td {
+            border: 1px solid var(--borda); text-align: center; padding: 0; font-size: 12px;
+        }
+        table.disponibilidade th {
+            background: var(--bg); padding: 8px 10px; white-space: nowrap; font-weight: 700;
+        }
+        table.disponibilidade td.rotulo-hora {
+            background: var(--bg); font-weight: 600; padding: 6px 10px; white-space: nowrap; color: var(--texto-suave);
+        }
+        .celula-vago, .celula-ocupado, .celula-passou, .celula-indisponivel {
+            display: block; width: 100%; height: 100%; padding: 8px 4px; box-sizing: border-box;
+        }
+        .celula-vago {
+            background: var(--marca-clara); color: #10241c; text-decoration: none; font-weight: 700;
+        }
+        html[data-tema="escuro"] .celula-vago { background: #1f4a37; color: #b9f0d1; }
+        .celula-vago:hover { background: var(--marca); }
+        .celula-ocupado { color: var(--texto-suave); opacity: 0.5; }
+        .celula-passou { color: var(--texto-suave); opacity: 0.35; font-style: italic; }
+        .celula-indisponivel { background: repeating-linear-gradient(45deg, var(--bg), var(--bg) 6px, var(--borda) 6px, var(--borda) 7px); }
+
+        .aviso-sem-horario {
+            border: 1px solid var(--borda); border-radius: 10px; padding: 16px 18px; margin: 10px 0 24px;
+            background: var(--bg-cartao);
+        }
+        .aviso-sem-horario a { color: var(--marca-escura); font-weight: 700; }
+
+        .datas-avulsas { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 16px; font-size: 13px; }
+        .chip-data-avulsa {
+            border: 1px solid var(--marca-escura); border-radius: 999px; padding: 4px 10px;
+            color: var(--marca-escura); text-decoration: none; font-weight: 700;
+        }
+        .repetir-ultimo {
+            display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+            border: 1px solid var(--marca-escura); border-radius: 10px; padding: 10px 14px; margin: 0 0 16px;
+            background: var(--bg-cartao); font-size: 14px;
+        }
+        .busca-profissional-direta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 18px; }
+        .chip-data-avulsa:hover { background: var(--marca-clara); color: #10241c; }
+    </style>
+
+    <h2 style="margin:0 0 4px;">Central de Atendimento — agendar por telefone</h2>
+    <p style="color:var(--texto-suave);margin:0 0 16px;">
+        Escolha a especialidade e o profissional para ver os horários livres da semana já destacados
+        (use "Semana anterior"/"Próxima semana" para navegar). A clínica funciona de segunda a sexta.
+    </p>
+
+    <div class="central-passos">
+        <span class="central-passo {% if not especialidade_selecionada %}ativo{% else %}feito{% endif %}">1. Especialidade</span>
+        <span class="central-passo {% if especialidade_selecionada and not profissional_selecionado %}ativo{% elif profissional_selecionado %}feito{% endif %}">2. Profissional</span>
+        <span class="central-passo {% if profissional_selecionado %}ativo{% endif %}">3. Horário livre</span>
+    </div>
+
+    {% if ultimo_agendamento %}
+        {# Pedido da clínica (23/10/2026): marcar vários pacientes seguidos pro mesmo profissional sem escolher tudo de novo. #}
+        <div class="repetir-ultimo">
+            <div>
+                <strong>Seu último agendamento:</strong>
+                {{ ultimo_agendamento.profissional.nome }} · {{ ultimo_agendamento.itens_resumo }} ·
+                {% if ultimo_agendamento.forma_atendimento == "CONVENIO" %}{{ ultimo_agendamento.convenio|default:"Convênio" }}{% else %}Particular{% endif %}
+                <span style="color:var(--texto-suave);">({{ ultimo_agendamento.paciente.nome_completo }}, {{ ultimo_agendamento.data_hora_inicio|date:"d/m" }})</span>
+            </div>
+            <a class="botao" style="text-decoration:none;" href="{{ url_repetir_ultimo }}"
+               title="Abre os horários desse profissional; ao clicar num horário vago, o agendamento já vem com profissional, forma de atendimento, convênio e procedimentos preenchidos">
+                ↻ Repetir último agendamento
+            </a>
+        </div>
+    {% endif %}
+
+    <form method="get" class="busca-profissional-direta">
+        <label for="central-profissional" style="font-size:13px;">Ou busque direto pelo profissional:</label>
+        <select name="profissional" id="central-profissional" class="campo" onchange="this.form.submit()">
+            <option value="">Digite para buscar o profissional...</option>
+            {% for profissional in profissionais_ativos %}
+                <option value="{{ profissional.pk }}" {% if profissional_selecionado and profissional_selecionado.pk == profissional.pk %}selected{% endif %}>{{ profissional.nome }}</option>
+            {% endfor %}
+        </select>
+    </form>
+
+    <h3 style="margin:0 0 4px;">1. Especialidade</h3>
+    <div class="cartoes-especialidade">
+        {% for chave, dados in lista_especialidades %}
+            <a class="cartao-opcao{% if chave == especialidade_selecionada %} selecionado{% endif %}"
+               href="?especialidade={{ chave|urlencode }}">
+                <strong>{{ dados.rotulo }}</strong>
+                <span>{{ dados.profissionais|length }} profissional{{ dados.profissionais|length|pluralize:"is" }}</span>
+            </a>
+        {% empty %}
+            <p><em>Nenhum profissional com especialidade cadastrada ainda.</em></p>
+        {% endfor %}
+    </div>
+
+    {% if especialidade_selecionada and profissionais_da_especialidade %}
+        <h3 style="margin:0 0 4px;">2. Profissional</h3>
+        <div class="cartoes-profissional">
+            {% for profissional in profissionais_da_especialidade %}
+                <a class="cartao-opcao{% if profissional_selecionado and profissional_selecionado.pk == profissional.pk %} selecionado{% endif %}"
+                   href="?especialidade={{ especialidade_selecionada|urlencode }}&profissional={{ profissional.pk }}">
+                    <strong>{{ profissional.nome }}</strong>
+                    <span>{{ profissional.registro_profissional|default:"—" }}</span>
+                </a>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if profissional_selecionado and not tem_horario_cadastrado %}
+        <div class="aviso-sem-horario">
+            <strong>{{ profissional_selecionado.nome }}</strong> ainda não tem horário de atendimento cadastrado.
+            Cadastre em <a href="{% url 'cadastros:profissional_horarios' profissional_selecionado.pk %}">Profissionais → Horários</a>
+            (dias fixos da semana) ou em
+            <a href="{% url 'cadastros:profissional_excecoes' profissional_selecionado.pk %}">Profissionais → Datas / exceções</a>
+            (datas específicas do mês) para que a Central de Atendimento possa mostrar os horários vagos dele.
+        </div>
+    {% endif %}
+
+    {% if profissional_selecionado and proximas_datas_avulsas %}
+        <div class="datas-avulsas">
+            <strong>Próximas datas específicas de {{ profissional_selecionado.nome }}:</strong>
+            {% for data in proximas_datas_avulsas %}
+                <a class="chip-data-avulsa"
+                   href="?especialidade={{ especialidade_selecionada|urlencode }}&profissional={{ profissional_selecionado.pk }}&inicio={{ data|date:'Y-m-d' }}{{ repetir_qs }}">
+                    {{ data|date:"D d/m" }}
+                </a>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if profissional_selecionado and tem_horario_cadastrado %}
+        <h3 style="margin:0 0 8px;">3. Horários livres — {{ profissional_selecionado.nome }}</h3>
+        <p style="color:var(--texto-suave);font-size:13px;margin:0 0 10px;">
+            Clique num horário em verde para já abrir o agendamento naquele dia e horário. Células cinzas com
+            "—" estão ocupadas por outro atendimento. Células cinzas em itálico com "passou" já ficaram no
+            passado (não têm mais atendimento nenhum, só não podem mais ser agendadas). Células listradas são
+            fora do horário de atendimento dele
+            (<a href="{% url 'cadastros:profissional_horarios' profissional_selecionado.pk %}">ajustar horários</a> ·
+            <a href="{% url 'cadastros:profissional_excecoes' profissional_selecionado.pk %}">datas / exceções</a>).
+        </p>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;">
+            {% if semana_anterior %}
+                <a class="botao" style="text-decoration:none;background:var(--texto-suave);"
+                   href="?especialidade={{ especialidade_selecionada|urlencode }}&profissional={{ profissional_selecionado.pk }}&inicio={{ semana_anterior|date:'Y-m-d' }}{{ repetir_qs }}">
+                    ← Semana anterior
+                </a>
+            {% else %}
+                <span></span>
+            {% endif %}
+            <a class="botao" style="text-decoration:none;"
+               href="?especialidade={{ especialidade_selecionada|urlencode }}&profissional={{ profissional_selecionado.pk }}&inicio={{ proxima_semana|date:'Y-m-d' }}{{ repetir_qs }}">
+                Próxima semana →
+            </a>
+        </div>
+        {% if not disponibilidade %}
+            <div class="aviso-sem-horario">
+                {{ profissional_selecionado.nome }} não atende na semana de
+                {{ semana_exibida.0|date:"d/m" }} a {{ semana_exibida|last|date:"d/m" }}.
+                {% if proximas_datas_avulsas %}Clique numa das datas acima{% else %}Use "Próxima semana"{% endif %}
+                para ir até um dia em que ele atende.
+            </div>
+        {% else %}
+        <div class="tabela-disponibilidade-wrap">
+            <table class="disponibilidade">
+                <tr>
+                    <th></th>
+                    {% for dia in disponibilidade.dias %}
+                        <th>{{ dia|date:"D" }}<br>{{ dia|date:"d/m" }}</th>
+                    {% endfor %}
+                </tr>
+                {% for linha in disponibilidade.linhas %}
+                    <tr>
+                        <td class="rotulo-hora">{{ linha.hora }}</td>
+                        {% for celula in linha.celulas %}
+                            <td>
+                                {% if celula.livre %}
+                                    <a class="celula-vago"
+                                       href="{% url 'agenda:agendamento_novo' %}?data={{ celula.data|date:'Y-m-d' }}&profissional={{ profissional_selecionado.pk }}&hora={{ celula.hora }}{{ repetir_qs }}">
+                                        Vago
+                                    </a>
+                                {% elif celula.ocupado %}
+                                    <span class="celula-ocupado" title="Ocupado por outro atendimento">—</span>
+                                {% elif celula.atende %}
+                                    <span class="celula-passou" title="Horário já passou — não estava ocupado quando passou">passou</span>
+                                {% else %}
+                                    <span class="celula-indisponivel"></span>
+                                {% endif %}
+                            </td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+            </table>
+        </div>
+        {% endif %}
+    {% endif %}
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Autorizar — {{ agendamento.paciente.nome_completo }} — Clínica SMEDIM{% endblock %}
+{% block conteudo %}
+    <h2 style="margin:0 0 6px;">Autorizar atendimento — {{ agendamento.convenio.nome }}</h2>
+
+    <p style="color:var(--texto-suave);margin:0 0 12px;">
+        <strong>{{ agendamento.paciente.nome_completo }}</strong> com {{ agendamento.profissional.nome }},
+        em {{ agendamento.data_hora_inicio|date:"d/m/Y" }} ({{ agendamento.horario_exibicao }}).
+        Procedimento{{ itens|length|pluralize }}:
+        {% for item in itens %}{{ item }}{% if not forloop.last %}, {% endif %}{% endfor %}.
+    </p>
+
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="proximo" value="{{ destino }}">
+
+        {% for item, guia_form in pares %}
+            <fieldset style="border:1px solid var(--borda);border-radius:8px;padding:12px;margin:0 0 16px;">
+                <legend style="padding:0 6px;font-weight:600;">
+                    Guia de sessões — {{ item.procedimento.nome }}
+                    {% if item.quantidade > 1 %}(esta sessão usa {{ item.quantidade }} sessões da guia){% endif %}
+                </legend>
+                {% for erro in guia_form.non_field_errors %}<div class="mensagem error" style="margin-bottom:8px;">{{ erro }}</div>{% endfor %}
+                <div class="campo-bloco">
+                    {{ guia_form.guia.label_tag }}
+                    {{ guia_form.guia }}
+                    {% for erro in guia_form.guia.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+                </div>
+                <div class="bloco-guia-nova" data-select="{{ guia_form.guia.id_for_label }}" style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <div style="flex:2;min-width:160px;">
+                        {{ guia_form.novo_numero.label_tag }} {{ guia_form.novo_numero }}
+                        {% for erro in guia_form.novo_numero.errors %}<div class="mensagem error" style="margin-top:4px;">{{ erro }}</div>{% endfor %}
+                    </div>
+                    <div style="flex:1;min-width:120px;">
+                        {{ guia_form.nova_quantidade.label_tag }} {{ guia_form.nova_quantidade }}
+                        {% for erro in guia_form.nova_quantidade.errors %}<div class="mensagem error" style="margin-top:4px;">{{ erro }}</div>{% endfor %}
+                    </div>
+                    <div style="flex:1;min-width:150px;">
+                        {{ guia_form.nova_validade.label_tag }} {{ guia_form.nova_validade }}
+                        {% for erro in guia_form.nova_validade.errors %}<div class="mensagem error" style="margin-top:4px;">{{ erro }}</div>{% endfor %}
+                    </div>
+                </div>
+                {% if guia_form.encerradas %}
+                    <div style="font-size:12px;color:var(--texto-suave);margin-top:8px;">
+                        Guias que não podem mais ser usadas:
+                        {% for guia, situacao in guia_form.encerradas %}
+                            {{ guia.numero }} ({{ situacao|lower }}{% if situacao == "Aberta" %} — saldo menor que esta sessão{% endif %}: usadas {{ guia.sessoes_usadas }} de {{ guia.quantidade_sessoes }}){% if not forloop.last %}; {% endif %}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </fieldset>
+        {% endfor %}
+
+        {% if tem_item_sem_guia %}
+            <div class="campo-bloco">
+                {{ form.numero_guia.label_tag }}
+                {{ form.numero_guia }}
+                <div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">Opcional.</div>
+            </div>
+        {% endif %}
+        <div class="campo-bloco">
+            {{ form.motivo_prioridade.label_tag }}
+            {{ form.motivo_prioridade }}
+            <div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">{{ form.motivo_prioridade.help_text }}</div>
+        </div>
+        <div class="campo-bloco">
+            {{ form.observacao.label_tag }}
+            {{ form.observacao }}
+            <div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">{{ form.observacao.help_text }}</div>
+        </div>
+        <div class="campo-bloco" style="display:flex;align-items:center;gap:8px;">
+            {{ form.sem_assinatura }}
+            {{ form.sem_assinatura.label_tag }}
+            <span style="font-size:12px;color:var(--texto-suave);">Fica em <strong>Guias pendentes</strong> até alguém marcar que o paciente assinou.</span>
+        </div>
+        <p style="font-size:12px;color:var(--texto-suave);">Fica registrado que a autorização foi feita por <strong>{{ user.get_full_name|default:user.username }}</strong>, agora.</p>
+
+        <button type="submit" class="botao">Autorizar</button>
+        <a href="{{ destino }}" style="margin-left:12px;">Cancelar</a>
+    </form>
+
+    <script>
+        (function () {
+            document.querySelectorAll(".bloco-guia-nova").forEach(function (bloco) {
+                var select = document.getElementById(bloco.getAttribute("data-select"));
+                if (!select) { return; }
+                function atualizar() { bloco.style.display = select.value === "nova" ? "flex" : "none"; }
+                select.addEventListener("change", atualizar);
+                atualizar();
+            });
+        })();
+    </script>
+{% endblock %}

@@ -1,0 +1,85 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Pacotes dos pacientes — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <h2 style="margin:0 0 6px;">Pacotes dos pacientes</h2>
+    <p style="font-size:13px;color:var(--texto-suave);margin:0 0 12px;">
+        Pacotes já pagos e quanto ainda resta de cada um. O saldo é usado sozinho quando o paciente é agendado com o
+        mesmo profissional; falta ou cancelamento devolvem a sessão ao saldo.
+    </p>
+    {% if pode_cadastrar %}
+        <p style="margin:0 0 12px;"><a href="{% url 'agenda:pacote_cadastrar_manual' %}" class="botao">+ Cadastrar pacote do sistema antigo</a></p>
+    {% endif %}
+
+    <form method="get" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+        <input type="text" name="q" value="{{ termo }}" placeholder="Nome do paciente" class="campo" style="max-width:320px;">
+        <label style="display:flex;gap:6px;align-items:center;font-size:13px;">
+            <input type="checkbox" name="todos" value="1" {% if mostrar_todos %}checked{% endif %}> Mostrar também os já usados por inteiro
+        </label>
+        <button type="submit" class="botao">Buscar</button>
+    </form>
+
+    <table>
+        <tr>
+            <th>Paciente</th>
+            <th>Pacote</th>
+            <th>Profissional</th>
+            <th>Pago em</th>
+            <th>Valor</th>
+            <th>Saldo</th>
+            {% if pode_cadastrar %}<th></th>{% endif %}
+        </tr>
+        {% for linha in linhas %}
+            <tr>
+                <td>{{ linha.venda.paciente.nome_completo }}</td>
+                <td>
+                    {{ linha.venda.nome }}
+                    {% if linha.usos %}
+                        <details style="margin-top:4px;">
+                            <summary style="font-size:12px;cursor:pointer;">Usos ({{ linha.usos|length }})</summary>
+                            {% for item in linha.usos %}
+                                <div style="font-size:12px;">
+                                    {{ item.agendamento.data_hora_inicio|date:"d/m/Y" }} — {{ item }} — {{ item.agendamento.get_status_display }}
+                                    {% if item.agendamento.status == "CANCELADO" or item.agendamento.status == "FALTOU" %}(não conta){% endif %}
+                                </div>
+                            {% endfor %}
+                        </details>
+                    {% endif %}
+                </td>
+                <td>{{ linha.venda.profissional.nome }}</td>
+                <td>
+                    {% if linha.venda.pagamento_pendente %}
+                        <span style="color:#c0392b;font-weight:600;">A pagar</span>
+                        <div style="font-size:12px;color:var(--texto-suave);">sistema antigo — o financeiro cobra num próximo atendimento</div>
+                    {% elif linha.venda.cadastro_manual and not linha.venda.agendamento_venda_id %}
+                        Pago no sistema antigo
+                    {% else %}
+                        {{ linha.venda.pago_em|date:"d/m/Y" }}
+                    {% endif %}
+                </td>
+                <td>R$ {{ linha.venda.valor }}</td>
+                <td>
+                    {% if linha.ativo %}
+                        {{ linha.venda.saldo_resumo }}
+                    {% else %}
+                        <span style="color:#c0392b;">Sem valor — pagamento estornado</span>
+                    {% endif %}
+                </td>
+                {% if pode_cadastrar %}
+                    <td>
+                        {% if linha.venda.cadastro_manual %}
+                            <form method="post" action="{% url 'agenda:pacote_cancelar_manual' linha.venda.pk %}" style="margin:0;"
+                                  onsubmit="return confirm('Cancelar o pacote \'{{ linha.venda.nome|escapejs }}\' de {{ linha.venda.paciente.nome_completo|escapejs }}? Os atendimentos marcados que usavam este pacote voltam a ser cobrados normalmente. Não dá para desfazer.');">
+                                {% csrf_token %}
+                                <button type="submit" class="botao-mini">Cancelar pacote</button>
+                            </form>
+                        {% endif %}
+                    </td>
+                {% endif %}
+            </tr>
+        {% empty %}
+            <tr><td colspan="7"><em>Nenhum pacote encontrado.</em></td></tr>
+        {% endfor %}
+    </table>
+    {% include 'accounts/_paginacao.html' %}
+{% endblock %}

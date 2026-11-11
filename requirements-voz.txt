@@ -1,0 +1,5 @@
+# Opcional: voz do painel de chamada gerada no servidor (fila/voz.py).
+# Instalar à parte, depois do requirements.txt:
+#   venv/bin/pip install -r requirements-voz.txt
+# Sem isto o sistema funciona normal; o painel só usa a voz do navegador.
+piper-tts==1.8.0

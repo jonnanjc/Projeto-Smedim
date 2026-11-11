@@ -1,0 +1,270 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br" data-tema="claro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="{% static 'accounts/img/logo_smedim.svg' %}">
+    <title>Entrar — Clínica SMEDIM</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+            color: #16211d;
+            background: #eef7f1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .banner-login {
+            width: 100%;
+            position: relative;
+            background: linear-gradient(135deg, #2f9d74, #1a5940);
+            padding: 48px 24px 68px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .banner-login .selo-logo {
+            width: 68px;
+            height: 68px;
+            border-radius: 50%;
+            background: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 12px 26px -10px rgba(0, 0, 0, 0.35);
+            margin-bottom: 16px;
+        }
+        .banner-login .selo-logo img { width: 40px; height: auto; display: block; }
+        .banner-login .nome-clinica {
+            font-weight: 800;
+            font-size: 19px;
+            color: #f2fbf6;
+            letter-spacing: -0.01em;
+            margin: 0 0 3px;
+        }
+        .banner-login .selo-topo {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #bfe9d6;
+            margin: 0;
+        }
+        .onda-banner {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: -1px;
+            width: 100%;
+            height: 44px;
+            display: block;
+        }
+
+        .cartao {
+            width: calc(100% - 48px);
+            max-width: 380px;
+            margin: -44px 0 32px;
+            background: #ffffff;
+            border-radius: 18px;
+            padding: 34px 32px 30px;
+            box-shadow: 0 24px 50px -24px rgba(23, 43, 36, 0.32);
+            text-align: center;
+            position: relative;
+        }
+        h1 {
+            font-size: 20px;
+            font-weight: 800;
+            margin: 0 0 4px;
+            color: #16211d;
+        }
+        .sub { color: #55645d; font-size: 14px; margin: 0 0 24px; }
+
+        .mensagens { margin-bottom: 18px; text-align: left; }
+        .mensagem { padding: 10px 14px; border-radius: 8px; margin-bottom: 8px; font-size: 13.5px; }
+        .mensagem.error { background: #fdeaea; color: #a12525; border: 1px solid #f3c1c1; }
+        .mensagem.success { background: #e8f7ee; color: #1c7c40; border: 1px solid #bfe6cf; }
+        .mensagem.info { background: #eaf1fb; color: #1f3864; border: 1px solid #c6d7f2; }
+        .mensagem.warning { background: #fdf3e0; color: #8a5a00; border: 1px solid #f3d9a1; }
+
+        .campo-bloco { margin-bottom: 16px; text-align: left; }
+        .campo-bloco label {
+            display: block;
+            font-weight: 700;
+            font-size: 12.5px;
+            letter-spacing: 0.02em;
+            margin-bottom: 6px;
+            color: #16211d;
+        }
+        .campo {
+            width: 100%;
+            padding: 11px 12px;
+            border: 1px solid #cfe3d8;
+            border-radius: 10px;
+            font-size: 14.5px;
+            font-family: inherit;
+            background: #ffffff;
+            color: #16211d;
+        }
+        .campo:focus-visible { outline: 2px solid #2f9d74; outline-offset: 1px; }
+        .campo-senha-wrapper { position: relative; }
+        .campo-senha-wrapper .campo { padding-right: 68px; }
+        .botao-mostrar-senha {
+            position: absolute;
+            right: 6px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #1f6b4f;
+            font-size: 12.5px;
+            font-weight: 700;
+            cursor: pointer;
+            padding: 6px 8px;
+        }
+        .botao-mostrar-senha:hover { text-decoration: underline; }
+
+        .botao {
+            width: 100%;
+            background: linear-gradient(135deg, #2f9d74, #1f6b4f);
+            color: #f2fbf6;
+            border: none;
+            border-radius: 10px;
+            padding: 12px;
+            font-weight: 700;
+            font-size: 14.5px;
+            cursor: pointer;
+            margin-top: 6px;
+        }
+        .botao:hover { filter: brightness(1.05); }
+        .botao:disabled { background: #cfe3d8; color: #7c8b84; cursor: not-allowed; filter: none; }
+
+        .rodape-cartao {
+            margin-top: 20px;
+            font-size: 11px;
+            letter-spacing: 0.04em;
+            color: #8a978f;
+        }
+
+        /* Transição de "entrando" ao confirmar o login: a logo do banner dá um zoom
+           e o cartão esmaece, dando uns instantes pro efeito aparecer antes do form
+           terminar de submeter de fato (ver script no fim). */
+        .flash-entrada {
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(circle, #eafff4 0%, transparent 70%);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 5;
+        }
+        body.entrando .flash-entrada {
+            animation: flashEntrada 0.6s ease-out forwards;
+        }
+        @keyframes flashEntrada {
+            0% { opacity: 0; }
+            35% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+        body.entrando .banner-login .selo-logo {
+            animation: logoZoomEntrada 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+        @keyframes logoZoomEntrada {
+            0% { transform: scale(1); }
+            60% { transform: scale(1.4); }
+            100% { transform: scale(1.25); }
+        }
+        body.entrando .cartao > * {
+            animation: esmaecerEntrada 0.4s ease forwards;
+        }
+        @keyframes esmaecerEntrada {
+            to { opacity: 0; transform: translateY(6px); }
+        }
+    </style>
+</head>
+<body>
+    <div class="flash-entrada"></div>
+
+    <div class="banner-login">
+        <div class="selo-logo">
+            <img src="{% static 'accounts/img/logo_smedim.svg' %}" alt="Clínica SMEDIM">
+        </div>
+        <p class="nome-clinica">Clínica SMEDIM</p>
+        <p class="selo-topo">Sistema de Gestão</p>
+        <svg class="onda-banner" viewBox="0 0 400 44" preserveAspectRatio="none">
+            <path d="M0,0 C100,44 300,44 400,0 L400,44 L0,44 Z" fill="#eef7f1"></path>
+        </svg>
+    </div>
+
+    <div class="cartao">
+        <h1>Bem-vindo(a) de volta</h1>
+        <p class="sub">Acesse sua conta para continuar.</p>
+
+        {% if messages %}
+            <div class="mensagens">
+                {% for message in messages %}
+                    <div class="mensagem {{ message.tags }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <form method="post" novalidate id="form-login">
+            {% csrf_token %}
+            <div class="campo-bloco">
+                <label for="{{ form.username.id_for_label }}">Usuário</label>
+                {{ form.username }}
+            </div>
+            <div class="campo-bloco">
+                <label for="{{ form.password.id_for_label }}">Senha</label>
+                <div class="campo-senha-wrapper">
+                    {{ form.password }}
+                    <button type="button" class="botao-mostrar-senha"
+                            onclick="alternarSenha('{{ form.password.id_for_label }}', this)">Mostrar</button>
+                </div>
+            </div>
+            <button class="botao" id="botao-entrar" type="submit">Entrar</button>
+        </form>
+
+        <div class="rodape-cartao">CLÍNICA SMEDIM</div>
+    </div>
+
+    <script>
+        function alternarSenha(idCampo, botao) {
+            var campo = document.getElementById(idCampo);
+            if (campo.type === "password") {
+                campo.type = "text";
+                botao.textContent = "Ocultar";
+            } else {
+                campo.type = "password";
+                botao.textContent = "Mostrar";
+            }
+        }
+
+        // Ao confirmar o login, dá um zoom na logo antes de enviar o formulário
+        // de fato — segura o envio por meio segundo só pra dar tempo da animação
+        // aparecer (a resposta do servidor, local, costuma ser quase instantânea).
+        // Toca sempre, mesmo com "reduzir movimento" ligado no sistema (decisão
+        // do cliente — normalmente essa checagem existiria por acessibilidade).
+        (function () {
+            var form = document.getElementById("form-login");
+            var botao = document.getElementById("botao-entrar");
+
+            form.addEventListener("submit", function (evento) {
+                if (document.body.classList.contains("entrando")) {
+                    return;
+                }
+                evento.preventDefault();
+                document.body.classList.add("entrando");
+                botao.disabled = true;
+                botao.textContent = "Entrando...";
+                setTimeout(function () {
+                    form.submit();
+                }, 480);
+            });
+        })();
+    </script>
+</body>
+</html>

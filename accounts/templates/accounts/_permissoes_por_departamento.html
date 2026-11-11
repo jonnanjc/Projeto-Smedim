@@ -1,0 +1,43 @@
+{% for departamento, itens in departamentos %}
+    <fieldset class="fieldset-departamento-permissoes" style="border:1px solid var(--borda);border-radius:6px;padding:10px 16px 14px;margin-bottom:14px;">
+        <legend style="font-weight:600;padding:0 6px;font-size:14px;">
+            {{ departamento }}
+            <label style="font-weight:400;font-size:12px;color:var(--texto-suave);cursor:pointer;margin-left:10px;">
+                <input type="checkbox" class="checkbox-marcar-todos-departamento">
+                Marcar todos
+            </label>
+        </legend>
+        {% for codigo, rotulo in itens %}
+            <label style="display:block;font-weight:400;font-size:14px;margin:6px 0;">
+                <input type="checkbox" name="{{ nome_campo }}" value="{{ codigo }}" class="checkbox-permissao-departamento" {% if codigo in permissoes_selecionadas %}checked{% endif %}>
+                {{ rotulo }}
+            </label>
+        {% endfor %}
+    </fieldset>
+{% endfor %}
+
+<script>
+    // "Marcar todos" por departamento — marca/desmarca de uma vez todas as permissões daquele
+    // fieldset, e mantém o próprio checkbox "Marcar todos" em dia (marcado só quando TODAS as
+    // permissões do departamento já estiverem marcadas), tanto ao carregar a tela quanto ao
+    // clicar em uma permissão avulsa.
+    (function () {
+        document.querySelectorAll(".fieldset-departamento-permissoes").forEach(function (fieldset) {
+            var marcarTodos = fieldset.querySelector(".checkbox-marcar-todos-departamento");
+            var checkboxes = fieldset.querySelectorAll(".checkbox-permissao-departamento");
+            if (!marcarTodos || !checkboxes.length) { return; }
+
+            function atualizarMarcarTodos() {
+                marcarTodos.checked = Array.prototype.every.call(checkboxes, function (cb) { return cb.checked; });
+            }
+            atualizarMarcarTodos();
+
+            marcarTodos.addEventListener("change", function () {
+                checkboxes.forEach(function (cb) { cb.checked = marcarTodos.checked; });
+            });
+            checkboxes.forEach(function (cb) {
+                cb.addEventListener("change", atualizarMarcarTodos);
+            });
+        });
+    })();
+</script>

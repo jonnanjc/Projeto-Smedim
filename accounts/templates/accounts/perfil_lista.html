@@ -1,0 +1,31 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Perfis — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Perfis</h2>
+        <a href="{% url 'perfil_novo' %}" class="botao" style="text-decoration:none;">+ Novo perfil</a>
+    </div>
+
+    <table>
+        <tr>
+            <th>Perfil</th>
+            <th>Permissões</th>
+            <th>Usuários</th>
+            <th></th>
+        </tr>
+        {% for perfil in perfis %}
+            <tr>
+                <td>{{ perfil.name }}</td>
+                <td>{{ perfil.permissions.count }}</td>
+                <td>{{ perfil.user_set.count }}</td>
+                <td>
+                    <a href="{% url 'perfil_editar' perfil.pk %}">Editar</a>
+                    · <a href="{% url 'perfil_excluir' perfil.pk %}">Excluir</a>
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="4"><em>Nenhum perfil cadastrado.</em></td></tr>
+        {% endfor %}
+    </table>
+{% endblock %}

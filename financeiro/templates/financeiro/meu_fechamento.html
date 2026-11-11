@@ -1,0 +1,168 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Meu fechamento — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <div class="relatorio-nav no-imprimir">
+        {% if periodo == "diario" %}
+            <a href="?data={{ dia_anterior|date:'Y-m-d' }}">‹ Dia anterior</a>
+            <a href="?data={{ dia_seguinte|date:'Y-m-d' }}">Dia seguinte ›</a>
+            <a href="{% url 'financeiro:meu_fechamento_mensal' %}" style="margin-left:auto;">Ver meu fechamento mensal →</a>
+        {% else %}
+            <a href="?ano={{ mes_anterior_ano }}&mes={{ mes_anterior_mes }}">‹ Mês anterior</a>
+            <input type="month" value="{{ ano }}-{{ mes|stringformat:'02d' }}" style="border:1px solid var(--borda);border-radius:6px;padding:3px 8px;font:inherit;font-size:12.5px;background:var(--bg-cartao);color:var(--texto);" onchange="
+                var p = new URLSearchParams(window.location.search);
+                var partes = this.value.split('-');
+                p.set('ano', partes[0]); p.set('mes', parseInt(partes[1], 10));
+                window.location.search = p.toString();
+            ">
+            <a href="?ano={{ mes_seguinte_ano }}&mes={{ mes_seguinte_mes }}">Mês seguinte ›</a>
+            <a href="{% url 'financeiro:meu_fechamento_diario' %}" style="margin-left:auto;">Ver meu fechamento diário →</a>
+        {% endif %}
+    </div>
+
+    <div class="relatorio-pagina">
+        <div class="relatorio-topo">
+            <div class="relatorio-marca">
+                <div class="relatorio-selo">S</div>
+                <div>
+                    <div class="relatorio-nome-clinica">Clínica SMEDIM</div>
+                    <div class="relatorio-subtitulo-marca">Meu fechamento</div>
+                </div>
+            </div>
+            <div class="relatorio-titulo">
+                <h2>{{ profissional.nome }}</h2>
+                {% if periodo == "diario" %}
+                    <div class="relatorio-periodo">{{ data|date:"l, d \d\e F \d\e Y" }}</div>
+                {% else %}
+                    <div class="relatorio-periodo">{{ data_inicio|date:"F \d\e Y"|capfirst }} · {{ data_inicio|date:"d/m" }} a {{ data_fim|date:"d/m" }}</div>
+                {% endif %}
+                <div class="relatorio-gerado">Gerado em {% now "d/m/Y" %} às {% now "H:i" %}</div>
+            </div>
+        </div>
+
+        {# Pedido da clínica (28/10/2026): o profissional vê de cara quanto leva, já com o desconto. #}
+        <div class="secao">
+            <div class="secao-titulo">{% if profissional.eh_proprietario %}Minha produção{% else %}Quanto eu levo{% endif %} {% if periodo == "diario" %}hoje{% else %}no mês{% endif %} <span class="legenda">{% if profissional.eh_proprietario %}particular + convênio, sem retenção{% else %}particular + convênio, já com o desconto da clínica{% endif %}</span></div>
+            <div class="linha-item"><span class="rotulo">Particular</span><span class="valor fonte-num">R$ {{ particular_liquido }}</span></div>
+            <div class="linha-item"><span class="rotulo">Convênios</span><span class="valor fonte-num">R$ {{ convenios_valor }}</span></div>
+            <div class="linha-total"><span>Total</span><span class="fonte-num">R$ {{ total_liquido }}</span></div>
+            {% if convenios_sem_valor %}
+                <p style="font-size:11.5px;color:#c0392b;margin-top:4px;">
+                    {{ convenios_sem_valor }} procedimento(s) de convênio sem preço na tabela do convênio não entraram no valor — avise a recepção/financeiro.
+                </p>
+            {% endif %}
+        </div>
+
+        <div class="secao">
+            <div class="secao-titulo">Convênios <span class="legenda">por procedimento — {% if convenio_desconto %}valor já com o desconto de {{ convenio_desconto }}% da clínica{% else %}valor da tabela do convênio{% endif %}</span></div>
+            {% for grupo in convenios %}
+                <div class="grupo-procedimento">
+                    <div class="grupo-nome">{{ grupo.nome }} <span class="qtd">{{ grupo.total }} proc.</span><span class="valor fonte-num" style="float:right;">R$ {{ grupo.valor }}</span></div>
+                    {% for item in grupo.itens %}
+                        <div class="linha-item sub">
+                            <span class="rotulo">{{ item.procedimento }} <span class="qtd">({{ item.qtd }})</span></span>
+                            <span class="valor fonte-num">{% if item.retorno %}grátis{% elif item.pago_na_clinica %}<span class="qtd">valor no Particular</span>{% else %}R$ {{ item.valor }}{% if item.sem_valor %} <span class="qtd" style="color:#c0392b;">+ {{ item.sem_valor }} sem preço</span>{% endif %}{% endif %}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% empty %}
+                <p style="color:var(--texto-suave);font-size:13px;">Nenhum atendimento por convênio meu {% if periodo == "diario" %}hoje{% else %}neste mês{% endif %}.</p>
+            {% endfor %}
+            {% if convenios %}
+                <div class="linha-total"><span>Total convênio · {{ convenios_total }} procedimentos</span><span class="fonte-num">R$ {{ convenios_valor }}</span></div>
+            {% endif %}
+        </div>
+
+        <div class="secao">
+            <div class="secao-titulo">Retornos <span class="legenda">quantidade por especialidade — sem valores (retorno nunca gera cobrança)</span></div>
+            {% for linha in retornos %}
+                <div class="linha-item"><span class="rotulo">{{ linha.nome }}</span><span class="valor fonte-num">{{ linha.qtd }}</span></div>
+            {% empty %}
+                <p style="color:var(--texto-suave);font-size:13px;">Nenhum retorno meu {% if periodo == "diario" %}hoje{% else %}neste mês{% endif %}.</p>
+            {% endfor %}
+            {% if retornos %}
+                <div class="linha-total"><span>Total retornos</span><span class="fonte-num">{{ retornos_total }}</span></div>
+            {% endif %}
+        </div>
+
+        <div class="secao">
+            <div class="secao-titulo">Particular <span class="legenda">por procedimento — valor cobrado do paciente, antes do desconto</span></div>
+            {% for item in particular_procedimento %}
+                <div class="linha-item"><span class="rotulo">{{ item.procedimento }} <span class="qtd">({{ item.qtd }} proc.)</span></span><span class="valor fonte-num">R$ {{ item.valor }}</span></div>
+            {% empty %}
+                <p style="color:var(--texto-suave);font-size:13px;">Nenhum atendimento particular meu {% if periodo == "diario" %}hoje{% else %}neste mês{% endif %}.</p>
+            {% endfor %}
+            {% if particular_procedimento %}
+                <div class="linha-total"><span>Total particular · {{ particular_procedimentos_total }} procedimentos</span><span class="fonte-num">R$ {{ linha_propria.bruto }}</span></div>
+            {% endif %}
+        </div>
+
+        <div class="secao">
+            <div class="secao-titulo">Particular <span class="legenda">por forma de pagamento — valor cobrado do paciente, antes do desconto</span></div>
+            {% for item in particular_forma %}
+                <div class="linha-item"><span class="rotulo">{{ item.forma }} <span class="qtd">({{ item.qtd }} proc.)</span></span><span class="valor fonte-num">R$ {{ item.valor }}</span></div>
+            {% endfor %}
+            {% if particular_procedimento %}
+                <div class="linha-total"><span>Total particular · {{ particular_procedimentos_total }} procedimentos</span><span class="fonte-num">R$ {{ linha_propria.bruto }}</span></div>
+            {% endif %}
+        </div>
+
+        <div class="secao">
+            <div class="secao-titulo">Minha produção particular</div>
+            {% if linha_propria %}
+                <div class="linha-item"><span class="rotulo">Atendimentos</span><span class="valor fonte-num">{{ linha_propria.atendimentos }}</span></div>
+                <div class="linha-item"><span class="rotulo">Bruto</span><span class="valor fonte-num">R$ {{ linha_propria.bruto }}</span></div>
+                {% if linha_propria.estornado %}
+                    <div class="linha-item"><span class="rotulo">Estornado</span><span class="valor fonte-num">– R$ {{ linha_propria.estornado }}</span></div>
+                {% endif %}
+                {% if not profissional.eh_proprietario %}
+                    <div class="linha-item"><span class="rotulo">Retenção da clínica ({% if linha_propria.so_valor_fixo %}valor fixo{% else %}{{ linha_propria.percentual }}%{% if linha_propria.tem_valor_fixo %} + valor fixo{% endif %}{% endif %})</span><span class="valor fonte-num">– R$ {{ linha_propria.retido }}</span></div>
+                {% endif %}
+                {% if not profissional.eh_proprietario %}
+                    <div class="linha-item"><span class="rotulo">Repasse já recebido</span><span class="valor fonte-num">R$ {{ linha_propria.repasse_ja_pago }}</span></div>
+                    <div class="linha-item"><span class="rotulo">Repasse pendente (a receber depois)</span><span class="valor fonte-num">R$ {{ linha_propria.repasse_pendente }}</span></div>
+                {% endif %}
+                <div class="linha-total">
+                    <span>{% if profissional.eh_proprietario %}Produção própria (100%, sem retenção){% else %}Repasse a receber{% endif %}</span>
+                    <span class="fonte-num">R$ {{ linha_propria.repasse }}</span>
+                </div>
+            {% else %}
+                <p style="color:var(--texto-suave);font-size:13px;">
+                    Nenhum atendimento particular seu {% if periodo == "diario" %}hoje{% else %}neste mês{% endif %}.
+                </p>
+            {% endif %}
+        </div>
+
+        {% if visao_proprietario %}
+            <div class="caixa-proprietario">
+                <div class="titulo-dono">Retenção da clínica sobre os demais profissionais</div>
+                <div class="linha-item"><span class="rotulo">Produção própria (já contada acima)</span><span class="valor fonte-num">R$ {{ visao_proprietario.producao_propria }}</span></div>
+                <div class="linha-item"><span class="rotulo">Retenção sobre os demais profissionais</span><span class="valor fonte-num">R$ {{ visao_proprietario.retencao_outros }}</span></div>
+                <div class="linha-item"><span class="rotulo">Entradas avulsas de caixa</span><span class="valor fonte-num">R$ {{ visao_proprietario.avulsas_entradas }}</span></div>
+                <div class="linha-item"><span class="rotulo">Saídas avulsas de caixa</span><span class="valor fonte-num">− R$ {{ visao_proprietario.avulsas_saidas }}</span></div>
+                {% if periodo == "diario" %}
+                    {% for item in visao_proprietario.avulsas_saidas_itens %}
+                        <div class="linha-item sub"><span class="rotulo">{{ item.descricao }}{% if item.profissional %} — {{ item.profissional.nome }}{% endif %}</span><span class="valor fonte-num">− R$ {{ item.valor }}</span></div>
+                    {% endfor %}
+                {% endif %}
+                <div class="linha-total"><span>Resultado do proprietário</span><span class="fonte-num">R$ {{ visao_proprietario.resultado }}</span></div>
+                <div class="linha-item" style="margin-top:8px;"><span class="rotulo">Em dinheiro <span class="qtd">(no caixa)</span></span><span class="valor fonte-num">R$ {{ visao_proprietario.dinheiro_total }}</span></div>
+                {% if visao_proprietario.repasses_dinheiro %}
+                    <div class="linha-item sub"><span class="rotulo">já descontado: repasse pago em dinheiro do caixa</span><span class="valor fonte-num">− R$ {{ visao_proprietario.repasses_dinheiro }}</span></div>
+                {% endif %}
+                <div class="linha-item"><span class="rotulo">Em banco <span class="qtd">(cartão/Pix, parte do proprietário)</span></span><span class="valor fonte-num">R$ {{ visao_proprietario.banco_total }}</span></div>
+                <p style="font-size:11px;color:#8a9691;margin-top:6px;">
+                    "Em dinheiro" é o dinheiro físico no caixa: inclui a parte dos profissionais que ainda não foi
+                    repassada e o dinheiro de convênio pago na clínica.
+                </p>
+            </div>
+        {% endif %}
+
+        <div class="rodape-relatorio">
+            <span>Clínica SMEDIM — documento interno</span>
+            <span>{% if periodo == "diario" %}{{ data|date:"d/m/Y" }}{% else %}{{ data_inicio|date:"m/Y" }}{% endif %}</span>
+        </div>
+    </div>
+
+    <button type="button" class="botao-imprimir no-imprimir" onclick="window.print()">🖨️ Imprimir</button>
+{% endblock %}

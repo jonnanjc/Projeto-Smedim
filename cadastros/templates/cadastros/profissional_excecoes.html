@@ -1,0 +1,215 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Datas específicas / exceções — {{ profissional.nome }} — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <style>
+        .grade-excecao { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 14px; }
+        .bloco-turno-excecao {
+            border: 1px solid var(--borda); border-radius: 10px; padding: 14px; min-width: 220px; flex: 1;
+            background: var(--bg-cartao);
+        }
+        .bloco-turno-excecao label.rotulo-turno { display: flex; align-items: center; gap: 6px; font-weight: 700; cursor: pointer; margin-bottom: 8px; }
+        .linha-horas-excecao { display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--texto-suave); }
+        .linha-horas-excecao .campo-hora-range { display: flex; align-items: center; gap: 6px; }
+        .linha-horas-excecao input[type="time"] {
+            border: 1px solid var(--borda); border-radius: 6px; padding: 4px 6px; font-size: 13px;
+            background: var(--bg); color: var(--texto); width: 92px;
+        }
+        .linha-horas-excecao.desativado { opacity: 0.4; pointer-events: none; }
+        .rotulo-procedimentos { display: block; font-size: 11px; color: var(--texto-suave); margin-bottom: 4px; }
+        .lista-procedimentos-bloco { display: flex; flex-direction: column; gap: 3px; max-height: 130px; overflow-y: auto; }
+        .chip-procedimento { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 400; cursor: pointer; }
+
+        .cartao-excecao-data {
+            border: 1px solid var(--borda); border-radius: 10px; padding: 14px 16px; margin-bottom: 12px;
+            background: var(--bg-cartao);
+        }
+        .cartao-excecao-data h4 { margin: 0 0 8px; }
+        .linha-bloco-excecao { font-size: 13px; margin-bottom: 4px; }
+        .linha-bloco-excecao .procs { color: var(--texto-suave); }
+        .cartao-excecao-data.editando { border-color: var(--marca-escura); }
+        .contagem-pacientes { font-size: 12px; font-weight: 400; color: var(--texto-suave); margin-left: 8px; }
+        .acoes-data { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+        .caixa-repeticao {
+            border: 1px dashed var(--borda); border-radius: 10px; padding: 12px 14px; margin-top: 16px;
+            background: var(--bg-cartao);
+        }
+        .linha-repeticao { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; font-size: 13px; }
+        .linha-repeticao select.campo { width: auto; }
+        .dica-repeticao { font-size: 12px; color: var(--texto-suave); margin: 8px 0 0; }
+    </style>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Datas específicas / exceções — {{ profissional.nome }}</h2>
+        <a href="{{ voltar_url }}">← Voltar para Profissionais</a>
+    </div>
+    <p style="color:var(--texto-suave);margin:6px 0 0;">
+        Use esta tela para marcar o atendimento deste profissional numa data específica. Serve para dois casos:
+    </p>
+    <ul style="color:var(--texto-suave);margin:6px 0 0;padding-left:20px;">
+        <li><strong>Profissional que vem só em datas marcadas no mês</strong> (ex: "vem todo dia 15"): deixe o
+            <a href="{% url 'cadastros:profissional_horarios' profissional.pk %}">horário fixo semanal</a> em branco e
+            cadastre aqui cada data em que ele vem. A Central de Atendimento mostra essas datas para a recepção agendar.</li>
+        <li><strong>Mudança pontual</strong> num profissional com horário fixo (ex: "no dia 20/07 ele vai fazer
+            ultrassom à tarde em vez de manhã"): a data escolhida passa a seguir só o que for marcado aqui; para voltar
+            ao normal, remova a data.</li>
+    </ul>
+
+    {% if data_editando %}
+        <h3 style="margin:18px 0 0;" id="formulario-data">Editando {{ data_editando|date:"l, d/m/Y" }}</h3>
+        <p style="color:var(--texto-suave);margin:4px 0 0;font-size:13px;">
+            Ajuste os turnos e salve — o que estava cadastrado nessa data é substituído.
+            <a href="{% url 'cadastros:profissional_excecoes' profissional.pk %}">Cancelar edição</a>.
+            Pacientes já agendados nessa data não são alterados (para mudar o dia inteiro, use "Remanejar").
+        </p>
+    {% else %}
+        <h3 style="margin:18px 0 0;" id="formulario-data">Nova data</h3>
+    {% endif %}
+    <form method="post">
+        {% csrf_token %}
+        <div class="campo-bloco" style="max-width:220px;">
+            <label for="id_data">Data</label>
+            <input type="date" name="data" id="id_data" class="campo" required
+                   value="{% if data_editando %}{{ data_editando|date:'Y-m-d' }}{% endif %}"
+                   {% if data_editando %}readonly{% endif %}>
+        </div>
+
+        <div class="grade-excecao">
+            {% for coluna in grade_nova %}
+                <div class="bloco-turno-excecao">
+                    <label class="rotulo-turno">
+                        <input type="checkbox" name="ativo_{{ coluna.chave }}"
+                               onchange="document.getElementById('horas-excecao-{{ coluna.chave }}').classList.toggle('desativado', !this.checked)"
+                               {% if coluna.marcado %}checked{% endif %}>
+                        {{ coluna.turno.label }}
+                    </label>
+                    <div class="linha-horas-excecao{% if not coluna.marcado %} desativado{% endif %}" id="horas-excecao-{{ coluna.chave }}">
+                        <div class="campo-hora-range">
+                            <input type="time" name="inicio_{{ coluna.chave }}" value="{{ coluna.inicio }}">
+                            <span>às</span>
+                            <input type="time" name="fim_{{ coluna.chave }}" value="{{ coluna.fim }}">
+                        </div>
+                        {% if procedimentos_normais or tem_usg %}
+                            <div>
+                                <span class="rotulo-procedimentos">Procedimentos (vazio = qualquer um):</span>
+                                <div class="lista-procedimentos-bloco">
+                                    {% if tem_usg %}
+                                        <label class="chip-procedimento">
+                                            <input type="checkbox" name="procedimentos_{{ coluna.chave }}" value="usg"
+                                                   {% if coluna.usg_marcado %}checked{% endif %}>
+                                            USG (ultrassom)
+                                        </label>
+                                    {% endif %}
+                                    {% for procedimento in procedimentos_normais %}
+                                        <label class="chip-procedimento">
+                                            <input type="checkbox" name="procedimentos_{{ coluna.chave }}" value="{{ procedimento.pk }}"
+                                                   {% if procedimento.pk in coluna.procedimentos_selecionados %}checked{% endif %}>
+                                            {{ procedimento.nome }}
+                                        </label>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% else %}
+                            <span class="rotulo-procedimentos">
+                                Nenhum procedimento vinculado a {{ profissional.nome }} ainda —
+                                <a href="{% url 'cadastros:procedimento_lista' %}">cadastre em Procedimentos</a>
+                                ("profissionais habilitados") antes de restringir horários.
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="caixa-repeticao">
+            <strong>Repetir nos próximos meses (opcional)</strong>
+            <div class="linha-repeticao">
+                <select name="repetir_modo" id="id_repetir_modo" class="campo">
+                    {% for valor, rotulo in modos_repeticao %}
+                        <option value="{{ valor }}" data-rotulo="{{ rotulo }}">{{ rotulo }}</option>
+                    {% endfor %}
+                </select>
+                <span id="repetir-meses-grupo" style="display:none;">
+                    pelos próximos
+                    <select name="repetir_meses" class="campo" style="width:auto;">
+                        {% for n in "123456789ABC"|make_list %}
+                            <option value="{{ forloop.counter }}"{% if forloop.counter == 3 %} selected{% endif %}>{{ forloop.counter }}</option>
+                        {% endfor %}
+                    </select>
+                    meses
+                </span>
+            </div>
+            <p class="dica-repeticao">
+                Cada mês vira uma data separada na lista abaixo — dá para editar, remover ou remanejar
+                qualquer uma delas depois, sem mexer nas outras. Meses em que a data não existe, cai em fim de
+                semana ou já tem horário cadastrado são pulados (o sistema avisa quais).
+            </p>
+        </div>
+
+        <div style="margin-top:16px;">
+            <button type="submit" class="botao">Salvar data</button>
+        </div>
+    </form>
+
+    <h3 style="margin:28px 0 8px;">Próximas datas cadastradas</h3>
+    {% for data, blocos, qtd_agendamentos in datas_cadastradas %}
+        <div class="cartao-excecao-data{% if data == data_editando %} editando{% endif %}">
+            <h4>
+                {{ data|date:"l, d/m/Y" }}
+                <span class="contagem-pacientes">
+                    {% if qtd_agendamentos %}{{ qtd_agendamentos }} paciente{{ qtd_agendamentos|pluralize }} agendado{{ qtd_agendamentos|pluralize }}{% else %}nenhum paciente agendado{% endif %}
+                </span>
+            </h4>
+            {% for bloco in blocos %}
+                <div class="linha-bloco-excecao">
+                    <strong>{{ bloco.get_turno_display }}</strong> — {{ bloco.horario_inicio|time:"H:i" }} às {{ bloco.horario_fim|time:"H:i" }}
+                    {% if bloco.nomes_procedimentos_exibicao %}
+                        <span class="procs">· só: {% for nome in bloco.nomes_procedimentos_exibicao %}{{ nome }}{% if not forloop.last %}, {% endif %}{% endfor %}</span>
+                    {% else %}
+                        <span class="procs">· qualquer procedimento</span>
+                    {% endif %}
+                </div>
+            {% endfor %}
+            <div class="acoes-data">
+                <a class="botao" style="text-decoration:none;"
+                   href="?editar={{ data|date:'Y-m-d' }}#formulario-data">Editar</a>
+                <a class="botao" style="text-decoration:none;background:#b9770e;"
+                   href="{% url 'cadastros:profissional_excecao_remanejar' profissional.pk data|date:'Y-m-d' %}">Remanejar para outra data</a>
+                <a class="botao" style="text-decoration:none;background:#c0392b;"
+                   href="{% url 'cadastros:profissional_excecao_remover' profissional.pk data|date:'Y-m-d' %}">Remover</a>
+            </div>
+        </div>
+    {% empty %}
+        <p><em>Nenhuma data futura cadastrada — {{ profissional.nome }} segue só o horário fixo semanal.</em></p>
+    {% endfor %}
+
+    <script>
+        (function () {
+            var NOMES_DIA = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo"];
+            var campoData = document.getElementById("id_data");
+            var modo = document.getElementById("id_repetir_modo");
+            var grupoMeses = document.getElementById("repetir-meses-grupo");
+
+            function atualizarRotulos() {
+                var valor = campoData.value;
+                var d = valor ? new Date(valor + "T12:00:00") : null;
+                Array.prototype.forEach.call(modo.options, function (opcao) {
+                    var rotulo = opcao.getAttribute("data-rotulo");
+                    if (d && !isNaN(d)) {
+                        var diaSemana = NOMES_DIA[(d.getDay() + 6) % 7];
+                        var ocorrencia = Math.floor((d.getDate() - 1) / 7) + 1;
+                        if (opcao.value === "dia_mes") rotulo = "Todo dia " + d.getDate() + " do mês";
+                        if (opcao.value === "semana_mes") rotulo = "Toda " + ocorrencia + "ª " + diaSemana + " do mês";
+                        if (opcao.value === "ultima_semana_mes") rotulo = "Toda última " + diaSemana + " do mês";
+                    }
+                    opcao.textContent = rotulo;
+                });
+                grupoMeses.style.display = modo.value ? "inline" : "none";
+            }
+
+            campoData.addEventListener("change", atualizarRotulos);
+            modo.addEventListener("change", atualizarRotulos);
+            atualizarRotulos();
+        })();
+    </script>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}{{ convenio.nome }} — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <p><a href="{% url 'cadastros:convenio_lista' %}">← Voltar para convênios</a></p>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">{{ convenio.nome }}</h2>
+        {% if perms.accounts.convenio_gerenciar %}
+            <a href="{% url 'cadastros:convenio_editar' convenio.pk %}">Editar dados do convênio</a>
+        {% endif %}
+    </div>
+    <p style="color:var(--texto-suave);">
+        Código ANS: {{ convenio.codigo_ans|default:"—" }} ·
+        Prazo de pagamento: {{ convenio.prazo_pagamento_dias|default:"—" }} dias ·
+        Retorno grátis: {% if convenio.prazo_retorno_dias %}{{ convenio.prazo_retorno_dias }} dias{% else %}não dá direito{% endif %} ·
+        {% if convenio.ativo %}Ativo{% else %}Inativo{% endif %}
+    </p>
+    <p style="color:var(--texto-suave);">
+        Pagamento na hora: {% if convenio.permite_pagamento_na_hora %}permitido{% if convenio.funciona_como_particular %} (funciona como particular — repasse semanal){% endif %}{% else %}não{% endif %} ·
+        Prazo de repasse ao profissional: {% if convenio.prazo_repasse_dias %}{{ convenio.prazo_repasse_dias }} dias (aprox. {{ convenio.repasse_atraso_aproximado_meses }} {% if convenio.repasse_atraso_aproximado_meses == 1 %}mês{% else %}meses{% endif %}){% else %}—{% endif %}
+    </p>
+
+    <h3>Tabela de preços</h3>
+    <p style="color:var(--texto-suave);font-size:14px;">
+        Para reajustar valores já cadastrados: clique em <strong>"Exportar tabela atual"</strong>, altere os valores na
+        planilha baixada e depois envie ela de volta em <strong>"Importar planilha"</strong> — como os procedimentos já
+        existem para este convênio, a importação apenas atualiza os preços, sem duplicar nada.
+    </p>
+    <p style="color:var(--texto-suave);font-size:14px;">
+        Um procedimento pode ter um preço geral (linha sem profissional) ou um preço específico para um
+        profissional (ex: "Consulta" com valor diferente para fonoaudiólogo x médico), sem precisar
+        cadastrar procedimentos duplicados como "Consulta Fono".
+    </p>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;">
+        {% if perms.accounts.convenio_gerenciar %}
+            <a href="{% url 'cadastros:preco_novo' convenio.pk %}" class="botao" style="text-decoration:none;">+ Adicionar preço</a>
+            {% if tem_precos %}
+                <a href="{% url 'cadastros:convenio_exportar_precos' convenio.pk %}" class="botao" style="text-decoration:none;background:var(--marca-escura);">⬇ Exportar tabela atual (para atualizar)</a>
+            {% endif %}
+            <a href="{% url 'cadastros:convenio_importar_precos' convenio.pk %}" class="botao" style="text-decoration:none;background:var(--marca-escura);">⬆ Importar planilha</a>
+        {% endif %}
+        <a href="{% url 'cadastros:baixar_modelo_precos' %}">⬇ Baixar modelo em branco (primeiro cadastro)</a>
+    </div>
+
+    <form method="get" style="margin:16px 0;">
+        <input type="text" name="q" class="campo" style="max-width:320px;display:inline-block;" placeholder="Buscar por procedimento, código ou profissional" value="{{ termo }}">
+        <button type="submit" class="botao">Buscar</button>
+        {% if termo %}<a href="{% url 'cadastros:convenio_detalhe' convenio.pk %}" style="margin-left:8px;">Limpar</a>{% endif %}
+    </form>
+
+    <table>
+        <tr>
+            <th>Procedimento</th>
+            <th>Código</th>
+            <th>Profissional</th>
+            <th>Valor (R$)</th>
+            <th></th>
+        </tr>
+        {% for preco in pagina %}
+            <tr>
+                <td>{{ preco.procedimento.nome }}</td>
+                <td>{{ preco.procedimento.codigo|default:"—" }}</td>
+                <td>{% if preco.profissional %}{{ preco.profissional.nome }}{% else %}<em>Geral</em>{% endif %}</td>
+                <td>{{ preco.valor }}</td>
+                <td>
+                    {% if perms.accounts.convenio_gerenciar %}
+                        <a href="{% url 'cadastros:preco_editar' preco.pk %}">Editar</a>
+                        · <a href="{% url 'cadastros:preco_excluir' preco.pk %}">Excluir</a>
+                    {% endif %}
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="5"><em>{% if termo %}Nenhum preço encontrado para "{{ termo }}".{% else %}Nenhum preço cadastrado ainda para este convênio.{% endif %}</em></td></tr>
+        {% endfor %}
+    </table>
+    {% include 'accounts/_paginacao.html' %}
+{% endblock %}

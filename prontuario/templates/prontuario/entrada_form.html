@@ -1,0 +1,39 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}{{ titulo }} — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <h2>{{ titulo }}</h2>
+    <p>
+        <strong>Paciente:</strong> {{ paciente.nome_completo }}<br>
+        <strong>Profissional:</strong> {{ profissional.nome }}<br>
+        <strong>Especialidade:</strong> {{ profissional.especialidade_exibicao }}
+        {% if agendamento %}<br><strong>Atendimento:</strong> {{ agendamento.data_hora_inicio|date:"d/m/Y H:i" }}{% endif %}
+    </p>
+    {% include "prontuario/_dados_paciente.html" with atendimento=agendamento %}
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="voltar" value="{{ voltar_url }}">
+        {% if simplificado %}
+            <p style="font-size:13px;">
+                Registro simplificado — descreva o atendimento no campo abaixo.
+                <a href="?completo=1&amp;voltar={{ voltar_url|urlencode }}">Usar formulário completo</a>
+            </p>
+        {% elif completo_escolhido %}
+            <input type="hidden" name="completo" value="1">
+            <p style="font-size:13px;"><a href="?voltar={{ voltar_url|urlencode }}">Voltar ao formulário simplificado</a></p>
+        {% endif %}
+        {% for campo in form %}
+            <div class="campo-bloco">
+                {{ campo.label_tag }}
+                {{ campo }}
+                {% if campo.help_text %}<div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">{{ campo.help_text }}</div>{% endif %}
+                {% for erro in campo.errors %}
+                    <div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+        <button type="submit" class="botao">Salvar registro</button>
+        <a href="{{ voltar_url }}" style="margin-left:12px;">Cancelar</a>
+        {% if entrada %}<a href="{% url 'prontuario:entrada_excluir' entrada.pk %}" style="margin-left:12px;color:#c0392b;">Apagar este registro</a>{% endif %}
+    </form>
+{% endblock %}

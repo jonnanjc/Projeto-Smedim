@@ -1,0 +1,40 @@
+{% comment %}
+    Lista "Fila de espera" (fila.views._contexto_fila_espera) — usada no painel de chamada e
+    na tela própria fila_espera.html. Só é incluída quando mostra_fila_espera é verdadeiro.
+{% endcomment %}
+<h3 style="margin:24px 0 6px;">Aguardando para ser chamado ({{ fila_aguardando|length }})</h3>
+<p style="font-size:12.5px;color:var(--texto-suave);margin:0 0 8px;">
+    Por ordem de chegada (hora em que a senha foi tirada no totem).
+    {% if pode_chamar_manual %}"Chamar esta" chama a senha escolhida fora da ordem automática e fica registrado no log de auditoria.{% endif %}
+</p>
+{% if aviso_chamada_manual %}
+    <div class="mensagem warning">{{ aviso_chamada_manual }}</div>
+{% endif %}
+{% if fila_aguardando %}
+    <div class="tabela-scroll">
+        <table>
+            <thead><tr><th>Senha</th><th>Atendimento</th><th>Chegada</th><th>Esperando há</th>{% if pode_chamar_manual %}<th></th>{% endif %}</tr></thead>
+            <tbody>
+                {% for senha in fila_aguardando %}
+                    <tr>
+                        <td><strong>{{ senha.codigo }}</strong><div style="font-size:12px;color:var(--texto-suave);">{{ senha.get_tipo_display }}</div></td>
+                        <td>{{ senha.rotulo_atendimento }}{% if senha.motivo_prioridade %}<div style="font-size:12px;color:var(--texto-suave);">{{ senha.get_motivo_prioridade_display }}</div>{% endif %}</td>
+                        <td>{{ senha.criado_em|time:"H:i" }}</td>
+                        <td>{{ senha.espera_texto }}</td>
+                        {% if pode_chamar_manual %}
+                            <td>
+                                <form method="post" action="{% url 'fila:chamar_manual' %}" style="margin:0;" onsubmit="return confirm('Chamar a senha {{ senha.codigo }} agora, fora da ordem?');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="senha_id" value="{{ senha.pk }}">
+                                    <button type="submit" class="botao-mini" {% if not chamada_manual_liberada %}disabled{% endif %}>Chamar esta</button>
+                                </form>
+                            </td>
+                        {% endif %}
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <p style="font-size:13px;color:var(--texto-suave);">Ninguém aguardando no momento.</p>
+{% endif %}

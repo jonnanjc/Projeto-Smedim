@@ -1,0 +1,46 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Fechamento diário — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <div class="relatorio-nav no-imprimir">
+        <a href="?data={{ dia_anterior|date:'Y-m-d' }}{% if profissional_selecionado %}&profissional={{ profissional_selecionado.pk }}{% endif %}">‹ Dia anterior</a>
+        <a href="?data={{ dia_seguinte|date:'Y-m-d' }}{% if profissional_selecionado %}&profissional={{ profissional_selecionado.pk }}{% endif %}">Dia seguinte ›</a>
+        <a href="{% url 'financeiro:relatorio_detalhado' %}?data={{ data|date:'Y-m-d' }}{% if profissional_selecionado %}&profissional={{ profissional_selecionado.pk }}{% endif %}" style="margin-left:auto;">Ver relatório detalhado deste dia →</a>
+    </div>
+
+    <form method="get" class="barra-filtro no-imprimir">
+        <input type="hidden" name="data" value="{{ data|date:'Y-m-d' }}">
+        <strong>Profissional:</strong>
+        <select name="profissional" onchange="this.form.submit()">
+            <option value="">Geral (todos os profissionais)</option>
+            {% for prof in profissionais %}
+                <option value="{{ prof.pk }}" {% if profissional_selecionado.pk == prof.pk %}selected{% endif %}>
+                    {{ prof.nome }}{% if prof.eh_proprietario %} (proprietário){% endif %}
+                </option>
+            {% endfor %}
+        </select>
+    </form>
+
+    <div class="relatorio-pagina">
+        <div class="relatorio-topo">
+            <div class="relatorio-marca">
+                <div class="relatorio-selo">S</div>
+                <div>
+                    <div class="relatorio-nome-clinica">Clínica SMEDIM</div>
+                    <div class="relatorio-subtitulo-marca">Fechamento de caixa</div>
+                </div>
+            </div>
+            <div class="relatorio-titulo">
+                <h2>Fechamento Diário{% if profissional_selecionado and not profissional_selecionado.eh_proprietario %} — {{ profissional_selecionado.nome }}{% endif %}</h2>
+                <div class="relatorio-periodo">{{ data|date:"l, d \d\e F \d\e Y" }}</div>
+                <div class="relatorio-gerado">Gerado em {% now "d/m/Y" %} às {% now "H:i" %} por {{ user.get_full_name|default:user.username }}</div>
+            </div>
+        </div>
+
+        {% include "financeiro/_fechamento_secoes.html" with epoca="hoje" mostrar_detalhe_saidas=True %}
+
+        <div class="rodape-relatorio"><span>Clínica SMEDIM — documento interno</span><span>{{ data|date:"d/m/Y" }}</span></div>
+    </div>
+
+    <button type="button" class="botao-imprimir no-imprimir" onclick="window.print()">🖨️ Imprimir este fechamento</button>
+{% endblock %}

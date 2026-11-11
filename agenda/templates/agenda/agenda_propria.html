@@ -1,0 +1,267 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Minha agenda — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <style>
+        /* Mesmo estilo de grade/blocos-por-horário usado em agenda_dia.html
+           (Agenda do dia/semana) — reaproveitado aqui pra "Minha agenda" não
+           ficar só uma lista simples, como no pedido do cliente. */
+        .cal-nav-botao {
+            border: 1px solid var(--borda); background: var(--bg); color: var(--texto);
+            border-radius: 6px; padding: 4px 12px; display: inline-flex; align-items: center;
+            text-decoration: none; font-size: 13px;
+        }
+        .cal-nav-botao:hover { border-color: var(--marca-escura); color: var(--marca-escura); }
+
+        .agenda-grade-tempo { border: 1px solid var(--borda); border-radius: 10px; overflow: hidden; }
+        .grade-cabecalho { display: flex; border-bottom: 1px solid var(--borda); background: var(--bg); }
+        .grade-rotulo-vazio { flex: 0 0 52px; }
+        .grade-titulo-coluna {
+            flex: 1; min-width: 0; text-align: center; padding: 8px 4px; font-size: 12px; font-weight: 700;
+            border-left: 1px solid var(--borda); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .grade-titulo-coluna.hoje { color: var(--marca-escura); }
+        .grade-corpo { display: flex; position: relative; overflow-y: auto; max-height: 640px; }
+        .grade-horas { flex: 0 0 52px; box-sizing: border-box; }
+        .grade-hora-rotulo { font-size: 11px; color: var(--texto-suave); text-align: right; padding-right: 6px; box-sizing: border-box; }
+        .grade-colunas { flex: 1; display: flex; position: relative; }
+        .grade-coluna { flex: 1; min-width: 0; position: relative; border-left: 1px solid var(--borda); }
+        .bloco-evento {
+            position: absolute; border-radius: 6px; padding: 3px 6px; font-size: 11px; color: #fff; background: var(--marca-escura);
+            overflow: hidden; text-decoration: none; box-shadow: 0 1px 2px rgba(0,0,0,0.3); line-height: 1.3; box-sizing: border-box;
+        }
+        .bloco-evento.status-agendado, .bloco-evento.status-confirmado { background: var(--marca-escura); }
+        .bloco-evento.status-realizado { background: #5a6169; }
+        .bloco-evento.status-faltou { background: #c0392b; }
+        .bloco-evento.status-pre_confirmado { background: #2f6f9e; }
+        .bloco-evento.status-pre_autorizado { background: #b26a00; }
+        .bloco-evento.status-autorizado { background: #1d5a42; }
+        /* Lista do turno (consulta/exame sem hora marcada) — um card por profissional/turno. */
+        .bloco-evento.bloco-lista { background: #4b6584; }
+        .bloco-evento small { display: block; opacity: 0.85; }
+        .grade-vazia { padding: 24px; text-align: center; color: var(--texto-suave); }
+
+        .olho-observacao { display: inline-block; position: relative; margin-left: 4px; }
+        .olho-observacao > summary { list-style: none; cursor: pointer; font-size: 13px; user-select: none; }
+        .olho-observacao > summary::-webkit-details-marker { display: none; }
+        .olho-observacao > summary::marker { content: ""; }
+        .olho-observacao[open] > summary { opacity: 0.6; }
+        .olho-observacao .balao-observacao {
+            position: absolute; z-index: 5; top: 20px; left: 0; min-width: 220px; max-width: 300px;
+            background: var(--bg-cartao); border: 1px solid var(--borda); border-radius: 8px;
+            padding: 8px 10px; font-size: 12px; color: var(--texto); box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+            white-space: normal;
+        }
+        .botao-mini {
+            display: inline-block; background: none; border: 1px solid var(--borda); color: var(--texto);
+            border-radius: 14px; padding: 4px 11px; font-size: 12px; line-height: 1.5; white-space: nowrap; cursor: pointer;
+        }
+        .botao-mini:hover { border-color: var(--marca); }
+    </style>
+
+    <h2 style="margin:0 0 16px;">Minha agenda{% if profissional %} — {{ profissional.nome }}{% endif %}</h2>
+
+    {% if not profissional %}
+        <p><em>Nenhum profissional vinculado ao seu usuário.</em></p>
+    {% else %}
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
+            <div style="display:flex;gap:8px;align-items:center;">
+                <a class="cal-nav-botao" href="?data={{ semana_anterior|date:'Y-m-d' }}">‹ Semana anterior</a>
+                <strong>{{ intervalo_inicio|date:"d/m" }} a {{ intervalo_fim|date:"d/m/Y" }}</strong>
+                <a class="cal-nav-botao" href="?data={{ semana_seguinte|date:'Y-m-d' }}">Semana seguinte ›</a>
+            </div>
+            <form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                {% csrf_token %}
+                <input type="hidden" name="data" value="{{ data|date:'Y-m-d' }}">
+                <label style="font-size:13px;">Estou atendendo na sala:</label>
+                {{ form_sala.sala }}
+                <button type="submit" class="botao-mini">Definir sala de hoje</button>
+                {% if sala_de_hoje %}
+                    <span style="font-size:12px;color:var(--texto-suave);">(hoje: {{ sala_de_hoje.nome }})</span>
+                {% endif %}
+            </form>
+        </div>
+
+        <div class="agenda-grade-tempo">
+            <div class="grade-cabecalho">
+                <div class="grade-rotulo-vazio"></div>
+                {% for dia in dias_semana %}
+                    <div class="grade-titulo-coluna{% if dia.hoje %} hoje{% endif %}">{{ dia.data|date:"D" }}<br>{{ dia.data|date:"d/m" }}</div>
+                {% endfor %}
+            </div>
+            <div class="grade-corpo" style="height:{{ altura_total_grade }}px;">
+                <div class="grade-horas">
+                    {% for hora in horas_grade %}
+                        <div class="grade-hora-rotulo" style="height:{{ pixels_por_hora }}px;">{{ hora }}:00</div>
+                    {% endfor %}
+                </div>
+                <div class="grade-colunas">
+                    {% for dia in dias_semana %}
+                        <div class="grade-coluna" style="background-image:repeating-linear-gradient(to bottom, var(--borda) 0, var(--borda) 1px, transparent 1px, transparent {{ pixels_por_hora }}px);">
+                            {% for bloco in dia.blocos %}
+                                {% if bloco.lista %}
+                                    <span class="bloco-evento bloco-lista"
+                                        style="top:{{ bloco.top }}px;height:{{ bloco.altura }}px;left:{{ bloco.esquerda }}%;width:{{ bloco.largura }}%;"
+                                        title="{{ bloco.agendamento.turno_rotulo }} — {{ bloco.agendamento.profissional.nome }} — ordem de agendamento: {{ bloco.nomes }}">
+                                        <strong>📋 {{ bloco.agendamento.turno_rotulo }}</strong> · {{ bloco.lista|length }} paciente{{ bloco.lista|length|pluralize }}
+                                        <small>{{ bloco.agendamento.profissional.nome }}</small>
+                                    </span>
+                                {% else %}
+                                <span class="bloco-evento status-{{ bloco.agendamento.status|lower }}"
+                                      style="top:{{ bloco.top }}px;height:{{ bloco.altura }}px;left:{{ bloco.esquerda }}%;width:{{ bloco.largura }}%;"
+                                      title="{{ bloco.agendamento.paciente.nome_completo }} — {{ bloco.hora_inicio_texto }}{% if bloco.hora_fim_texto %} às {{ bloco.hora_fim_texto }}{% endif %} ({{ bloco.agendamento.get_status_display }})">
+                                    <strong>{{ bloco.hora_inicio_texto }}</strong> {{ bloco.agendamento.paciente.primeiro_nome }}
+                                    {% if bloco.agendamento.encaixe %}<br><small>🔶 Encaixe</small>{% endif %}
+                                </span>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        {% if recepcao_propria and perms.accounts.fila_chamar_senha %}
+            {% comment %}
+                Só aparece quando a sala de hoje tem recepção própria (Sala.lugares_recepcao_propria) —
+                ver agenda.views.agendamento_chamar_recepcao. Chama, de uma vez, os próximos Autorizados
+                que couberem nos lugares livres; o primeiro entra no consultório, os demais esperam sentados.
+            {% endcomment %}
+            <div style="margin-top:24px;padding:12px 14px;border:1px solid var(--borda);border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+                <div>
+                    <strong>{{ recepcao_propria.nome }}</strong>
+                    <span style="font-size:13px;color:var(--texto-suave);">
+                        — {{ recepcao_propria.ocupados }} de {{ recepcao_propria.lugares }} lugares ocupados
+                    </span>
+                </div>
+                <form method="post" action="{% url 'agenda:agendamento_chamar_recepcao' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="botao" style="padding:6px 14px;font-size:13px;"{% if not recepcao_propria.a_chamar %} disabled{% endif %}>
+                        {% if recepcao_propria.a_chamar %}Chamar {{ recepcao_propria.a_chamar }} paciente{{ recepcao_propria.a_chamar|pluralize }} para a {{ recepcao_propria.nome }}
+                        {% elif recepcao_propria.ocupados >= recepcao_propria.lugares %}{{ recepcao_propria.nome }} cheia
+                        {% else %}Nenhum paciente aguardando chamada{% endif %}
+                    </button>
+                </form>
+            </div>
+        {% endif %}
+
+        <h3 style="margin:24px 0 8px;">Autorizados de hoje / ações</h3>
+        <table>
+            <tr>
+                <th>Horário</th>
+                <th>Paciente</th>
+                <th>Procedimento</th>
+                <th>Forma</th>
+                <th>Situação</th>
+                <th></th>
+            </tr>
+            {% for agendamento in agendamentos %}
+                {# Âncora de volta depois de mudar a situação (ver agendamento_mudar_status). #}
+                <tr id="agendamento-{{ agendamento.pk }}" style="scroll-margin-top:35vh;">
+                    <td>{{ agendamento.horario_exibicao }}</td>
+                    <td>
+                        {{ agendamento.paciente.nome_completo }}
+                        {% if agendamento.encaixe %}
+                            <span title="Encaixe — exceção de agenda" style="font-size:11px;font-weight:600;background:#e67e22;color:#fff;border-radius:10px;padding:1px 7px;margin-left:4px;">🔶 Encaixe</span>
+                        {% endif %}
+                        {% if agendamento.prioritario %}
+                            <span title="Prioritário — {{ agendamento.get_motivo_prioridade_display }}: passa na frente alternando 1 prioritário e 1 normal" style="font-size:11px;font-weight:600;background:#ea580c;color:#fff;border-radius:10px;padding:1px 7px;margin-left:4px;">P · {{ agendamento.get_motivo_prioridade_display }}</span>
+                        {% endif %}
+                        {% if agendamento.status == "AUTORIZADO" and agendamento.tem_exame_com_preparo %}
+                            <span title="Exame com preparo — a prioridade é na senha do totem; aqui vale a ordem de autorização" style="font-size:11px;font-weight:600;background:var(--marca-escura);color:#fff;border-radius:10px;padding:1px 7px;margin-left:4px;">🧪 Exame com preparo</span>
+                        {% endif %}
+                        {% if agendamento.posicao_recepcao %}
+                            <span style="font-size:11px;font-weight:600;background:#b5651d;color:#fff;border-radius:10px;padding:1px 7px;margin-left:4px;">
+                                {% if agendamento.posicao_recepcao == 1 %}🚪 No consultório{% else %}🪑 Recepção 2 · {{ agendamento.posicao_recepcao }}º{% endif %}
+                            </span>
+                        {% endif %}
+                        {% if agendamento.observacoes %}
+                            <details class="olho-observacao" title="Ver observação">
+                                <summary>👁️</summary>
+                                <div class="balao-observacao">{{ agendamento.observacoes }}</div>
+                            </details>
+                        {% endif %}
+                        {% if agendamento.carteirinha_vencida_no_atendimento %}
+                            <br><span style="color:#c0392b;font-size:12px;font-weight:600;">carteirinha vencida</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ agendamento.itens_resumo }}</td>
+                    <td>{% if agendamento.forma_atendimento == "CONVENIO" %}{{ agendamento.convenio|default:"Convênio" }}{% else %}Particular{% endif %}</td>
+                    <td>
+                        {% if agendamento.status == "FALTOU" %}<span style="color:#c0392b;">Faltou</span>
+                        {% elif agendamento.status == "REALIZADO" %}<span style="color:var(--marca-escura);">Realizado</span>
+                        {% else %}{{ agendamento.get_status_display }}{% endif %}
+                    </td>
+                    <td style="white-space:nowrap;">
+                        {% if perms.accounts.atendimento_realizar %}
+                            {% comment %}
+                                O profissional só marca/desmarca o próprio atendimento como realizado — nada
+                                de pré-confirmar, confirmar pagamento ou marcar falta, que são etapas da
+                                recepção/financeiro (ver fluxo combinado: recepção pré-autoriza, financeiro
+                                autoriza o pagamento, paciente volta pra fila, e o próprio profissional chama
+                                e atende).
+                            {% endcomment %}
+                            {% if agendamento.status == "AUTORIZADO" %}
+                                <form method="post" action="{% url 'agenda:agendamento_mudar_status' agendamento.pk 'REALIZADO' %}" style="display:inline;">
+                                    {% csrf_token %}<button type="submit" class="botao-tema" style="padding:2px 8px;font-size:12px;">Marcar como atendido</button>
+                                </form>
+                            {% elif agendamento.status == "REALIZADO" %}
+                                <form method="post" action="{% url 'agenda:agendamento_mudar_status' agendamento.pk 'AUTORIZADO' %}" style="display:inline;">
+                                    {% csrf_token %}<button type="submit" class="botao-tema" style="padding:2px 8px;font-size:12px;">Desmarcar (marquei sem querer)</button>
+                                </form>
+                            {% endif %}
+                            {% if agendamento.status == "REALIZADO" and agendamento.paciente.ativo %}
+                                <a href="{% url 'prontuario:entrada_nova' agendamento.pk %}" class="botao-mini" style="text-decoration:none;">+ Registro no prontuário</a>
+                                <a href="{% url 'documentos:atestado_novo' agendamento.pk %}" class="botao-mini" style="text-decoration:none;">Emitir atestado</a>
+                                <a href="{% url 'documentos:receituario_novo' agendamento.pk %}" class="botao-mini" style="text-decoration:none;">Emitir receituário</a>
+                            {% endif %}
+                        {% endif %}
+                        {% if perms.accounts.fila_chamar_senha and agendamento.ordem_chamada_hoje %}
+                            {% comment %}
+                                Chamada do paciente pelo próprio profissional — dispensa a recepção
+                                nessa etapa (ver agenda.views.agendamento_chamar). Só aparece pra quem
+                                está Autorizado hoje (agendamento.ordem_chamada_hoje só é marcado nesse
+                                caso, ver agenda_propria na view) e só depois que a sala de hoje for
+                                definida (formulário logo acima). Permissão própria (fila_chamar_senha),
+                                separada de atendimento_realizar.
+                            {% endcomment %}
+                            <span style="display:inline-block;margin-left:6px;">
+                                {% if sala_de_hoje %}
+                                    <form method="post" action="{% url 'agenda:agendamento_chamar' agendamento.pk %}" style="display:inline;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="botao" style="padding:3px 10px;font-size:12px;">
+                                            {% if agendamento.chamado_em %}Chamar novamente{% else %}Chamar paciente{% endif %}
+                                        </button>
+                                    </form>
+                                    <span style="font-size:11px;color:var(--texto-suave);">{{ agendamento.ordem_chamada_hoje }}ª a chamar hoje</span>
+                                {% else %}
+                                    <span style="font-size:11px;color:var(--texto-suave);">Defina a sala de hoje (acima) para chamar</span>
+                                {% endif %}
+                            </span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="6"><em>Nenhum paciente autorizado para atender agora.</em></td></tr>
+            {% endfor %}
+        </table>
+
+        {% if sem_evolucao and perms.accounts.atendimento_realizar %}
+            <h3 style="margin:28px 0 4px;">Atendimentos anteriores sem registro no prontuário</h3>
+            <p style="font-size:12.5px;color:var(--texto-suave);margin:0 0 8px;">
+                Últimos 30 dias. "Evoluir" abre o registro já com a data do atendimento.
+            </p>
+            <table>
+                <tr><th>Data</th><th>Paciente</th><th>Situação</th><th></th></tr>
+                {% for agendamento in sem_evolucao %}
+                    <tr>
+                        <td style="white-space:nowrap;">{{ agendamento.data_hora_inicio|date:"d/m/Y H:i" }}</td>
+                        <td>{{ agendamento.paciente.nome_completo }}</td>
+                        <td>{{ agendamento.get_status_display }}</td>
+                        <td><a href="{% url 'prontuario:entrada_nova' agendamento.pk %}" class="botao-mini" style="text-decoration:none;">Evoluir</a></td>
+                    </tr>
+                {% endfor %}
+            </table>
+        {% endif %}
+    {% endif %}
+{% endblock %}

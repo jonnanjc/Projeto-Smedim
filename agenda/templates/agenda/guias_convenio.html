@@ -1,0 +1,73 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Guias do convênio — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <h2 style="margin:0;">Guias do convênio (sessões)</h2>
+    <p style="font-size:13px;color:var(--texto-suave);">
+        Guias de sessões liberadas pelo plano para cada paciente. Elas são cadastradas na hora de autorizar a sessão,
+        e cada sessão autorizada gasta o saldo da guia (sessão de 1h gasta 2). Atendimento cancelado ou falta devolve
+        as sessões. Guia esgotada ou vencida não pode mais ser usada.
+    </p>
+
+    <form method="get" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin:12px 0;">
+        <div>
+            <label>Nome do paciente:</label>
+            <input type="text" name="paciente" value="{{ paciente_nome }}" class="campo">
+        </div>
+        <div>
+            <label>Convênio:</label>
+            <select name="convenio" class="campo">
+                <option value="">Todos</option>
+                {% for convenio in convenios %}
+                    <option value="{{ convenio.pk }}" {% if convenio_selecionado == convenio.pk|stringformat:"s" %}selected{% endif %}>{{ convenio.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label>Mostrar:</label>
+            <select name="situacao" class="campo">
+                <option value="">Só as que ainda podem ser usadas</option>
+                <option value="todas" {% if situacao == "todas" %}selected{% endif %}>Todas (inclui esgotadas e vencidas)</option>
+            </select>
+        </div>
+        <button type="submit" class="botao">Procurar</button>
+    </form>
+
+    <div style="overflow-x:auto;">
+    <table>
+        <tr>
+            <th>Guia</th>
+            <th>Paciente</th>
+            <th>Convênio</th>
+            <th>Procedimento</th>
+            <th>Sessões</th>
+            <th>Válida até</th>
+            <th>Situação</th>
+            <th>Cadastrada</th>
+            <th></th>
+        </tr>
+        {% for guia in guias %}
+            <tr>
+                <td><strong>{{ guia.numero }}</strong>{% if guia.observacoes %}<div style="font-size:12px;color:var(--texto-suave);">{{ guia.observacoes }}</div>{% endif %}</td>
+                <td>{{ guia.paciente.nome_completo }}</td>
+                <td>{{ guia.convenio.nome }}</td>
+                <td>{{ guia.procedimento.nome }}</td>
+                <td>usadas <strong>{{ guia.sessoes_usadas }} de {{ guia.quantidade_sessoes }}</strong>{% if guia.saldo %}<div style="font-size:12px;color:var(--texto-suave);">restam {{ guia.saldo }}</div>{% endif %}</td>
+                <td>{{ guia.validade|date:"d/m/Y"|default:"—" }}</td>
+                <td>
+                    {% if guia.situacao == "Aberta" %}
+                        <span{% if guia.saldo <= 2 %} style="color:#b7791f;font-weight:600;"{% endif %}>Aberta{% if guia.saldo <= 2 %} (acabando){% endif %}</span>
+                    {% else %}
+                        <span style="color:#c0392b;font-weight:600;">{{ guia.situacao }}</span>
+                    {% endif %}
+                </td>
+                <td style="font-size:12px;">{{ guia.criada_em|date:"d/m/Y" }}{% if guia.criada_por %}<div style="color:var(--texto-suave);">{{ guia.criada_por.get_full_name|default:guia.criada_por.username }}</div>{% endif %}</td>
+                <td>{% if pode_editar %}<a href="{% url 'agenda:guia_convenio_editar' guia.pk %}?proximo={{ request.get_full_path|urlencode }}">Corrigir</a>{% endif %}</td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="9" style="color:var(--texto-suave);">Nenhuma guia encontrada.</td></tr>
+        {% endfor %}
+    </table>
+    </div>
+    {% include 'accounts/_paginacao.html' %}
+{% endblock %}

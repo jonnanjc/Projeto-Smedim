@@ -1,0 +1,34 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Guichês — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Guichês de atendimento</h2>
+        <a href="{% url 'cadastros:guiche_novo' %}" class="botao" style="text-decoration:none;">+ Novo guichê</a>
+    </div>
+    <p style="font-size:13px;color:var(--texto-suave);">
+        Cadastro simples de guichês do balcão de recepção — renomeie ou adicione guichês livremente.
+        Usados pela recepção para escolher "estou no guichê X" na Agenda do dia, preparação para o futuro
+        sistema de fila/senha.
+    </p>
+
+    <table>
+        <tr>
+            <th>Nome</th>
+            <th>Situação</th>
+            <th></th>
+        </tr>
+        {% for guiche in guiches %}
+            <tr>
+                <td>{{ guiche.nome }}</td>
+                <td>{% if guiche.ativo %}Ativo{% else %}Inativo{% endif %}</td>
+                <td>
+                    <a href="{% url 'cadastros:guiche_editar' guiche.pk %}">Editar</a>
+                    · <a href="{% url 'cadastros:guiche_excluir' guiche.pk %}">Excluir</a>
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="3"><em>Nenhum guichê cadastrado.</em></td></tr>
+        {% endfor %}
+    </table>
+{% endblock %}

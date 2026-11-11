@@ -1,0 +1,396 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Registrar pagamento — {{ agendamento.paciente.nome_completo }} — Clínica SMEDIM{% endblock %}
+{% block conteudo %}
+    <h2 style="margin:0 0 6px;">Registrar pagamento</h2>
+
+    <p style="color:var(--texto-suave);margin:0 0 12px;">
+        Atendimento de <strong>{{ agendamento.paciente.nome_completo }}</strong> com
+        {{ agendamento.profissional.nome }}, em {{ agendamento.data_hora_inicio|date:"d/m/Y" }}
+        ({{ agendamento.horario_exibicao }}).
+    </p>
+
+    <table style="width:100%;border-collapse:collapse;margin:0 0 20px;">
+        <thead>
+            <tr style="text-align:left;border-bottom:1px solid var(--borda);">
+                <th style="padding:6px 8px 6px 0;">Procedimento</th>
+                <th style="padding:6px 8px;text-align:center;">Qtd.</th>
+                <th style="padding:6px 0 6px 8px;text-align:right;">Situação</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in itens %}
+                <tr style="border-bottom:1px solid var(--borda);">
+                    <td style="padding:8px 8px 8px 0;">{{ item.procedimento.nome }}</td>
+                    <td style="padding:8px;text-align:center;">{{ item.quantidade }}</td>
+                    <td style="padding:8px 0 8px 8px;text-align:right;">
+                        {% if item.eh_retorno %}
+                            <span class="selo-realizado">Retorno — grátis</span>
+                        {% elif item.pacote_vendido_id %}
+                            <span class="selo-realizado">{% if item.pacote_vendido.agendamento_venda_id == agendamento.pk %}No pacote vendido agora{% elif item.pacote_vendido.pagamento_pendente %}Pacote do sistema antigo — a pagar{% else %}Pacote — já pago{% endif %}</span>
+                        {% else %}
+                            R$ {{ item.valor_a_cobrar|default:"—" }}
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+            {% for venda in vendas_pacote %}
+                <tr style="border-bottom:1px solid var(--borda);">
+                    <td style="padding:8px 8px 8px 0;"><strong>Pacote: {{ venda.nome }}</strong>{% if venda.cadastro_manual %} <span style="font-size:12px;color:var(--texto-suave);">(do sistema antigo, a pagar)</span>{% endif %}
+                        <div style="font-size:12px;color:var(--texto-suave);">{% for item in venda.itens.all %}{{ item }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+                    </td>
+                    <td style="padding:8px;text-align:center;">1</td>
+                    <td style="padding:8px 0 8px 8px;text-align:right;">
+                        R$ {{ venda.valor }}
+                        <form method="post" style="display:inline;margin-left:8px;">
+                            {% csrf_token %}
+                            <input type="hidden" name="acao" value="remover_pacote">
+                            <input type="hidden" name="venda" value="{{ venda.pk }}">
+                            <button type="submit" style="font-size:12px;">Retirar</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if pacotes_do_paciente %}
+        <div class="mensagem info" style="margin:0 0 16px;">
+            <strong>Pacotes que o paciente já tem com {{ agendamento.profissional.nome }}:</strong>
+            {% for venda in pacotes_do_paciente %}
+                <div>{{ venda.nome }} — {{ venda.saldo_resumo }} ({% if venda.cadastro_manual and not venda.agendamento_venda_id %}pago no sistema antigo{% else %}comprado em {{ venda.pago_em|date:"d/m/Y" }}{% endif %})</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% for venda in pacotes_a_receber %}
+        <form method="post" class="mensagem error" style="margin:0 0 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            {% csrf_token %}
+            <input type="hidden" name="acao" value="cobrar_pacote">
+            <input type="hidden" name="venda" value="{{ venda.pk }}">
+            <div style="flex:1;min-width:240px;">
+                <strong>Pacote do sistema antigo a pagar: {{ venda.nome }} — R$ {{ venda.valor }}</strong>
+                <div style="font-size:12px;">{{ venda.saldo_resumo }}. Se o paciente for pagar hoje, inclua neste pagamento; senão, siga sem cobrar.</div>
+            </div>
+            <button type="submit" class="botao">Cobrar pacote agora</button>
+        </form>
+    {% endfor %}
+
+    {% if pacotes_disponiveis %}
+        <form method="post" style="border:1px dashed var(--borda);border-radius:8px;padding:12px 16px;margin:0 0 20px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+            {% csrf_token %}
+            <input type="hidden" name="acao" value="incluir_pacote">
+            <div style="flex:1;min-width:240px;">
+                <label for="id_pacote_venda" style="font-weight:600;">Vender pacote neste atendimento</label>
+                <div style="font-size:12px;color:var(--texto-suave);margin:2px 0 6px;">
+                    O paciente paga o pacote inteiro agora e o profissional recebe o repasse de uma vez. O que o pacote
+                    cobrir neste atendimento já sai dele; o restante fica de saldo para os próximos atendimentos.
+                </div>
+                <select name="pacote" id="id_pacote_venda" class="campo" required>
+                    <option value="">---------</option>
+                    {% for pacote in pacotes_disponiveis %}
+                        <option value="{{ pacote.pk }}">{{ pacote.nome }} — R$ {{ pacote.valor }} ({{ pacote.itens_resumo }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="botao">Incluir pacote</button>
+        </form>
+    {% endif %}
+
+    {% if agendamento.coberto_por_pacote %}
+        <div class="mensagem success" style="margin:0 0 20px;">
+            {% if agendamento.usa_pacote_a_pagar %}
+                <strong>Coberto pelo pacote do sistema antigo — ainda a pagar.</strong><br>
+                Use "Cobrar pacote agora" acima se o paciente for pagar hoje. Senão, confirme sem cobrar: a sessão sai
+                do saldo e o pacote continua a pagar.
+            {% else %}
+                <strong>Já pago no pacote — não gera cobrança.</strong><br>
+                Este atendimento usa o saldo de um pacote que o paciente já pagou. Não há valor a cobrar nem repasse
+                novo ao profissional (o repasse saiu inteiro na venda do pacote).
+            {% endif %}
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="botao">Confirmar e autorizar</button>
+            <a href="{{ voltar_url }}" style="margin-left:12px;">Voltar</a>
+        </form>
+    {% elif not agendamento.tem_item_cobravel %}
+        <div class="mensagem success" style="margin:0 0 20px;">
+            <strong>Retorno — não gera cobrança.</strong><br>
+            Todos os itens deste atendimento foram detectados automaticamente como retorno grátis
+            (dentro do prazo de retorno — 30 dias corridos, ou o prazo do convênio — e mesma especialidade). Não é possível cobrar por este
+            atendimento nem escolher forma de pagamento — a elegibilidade é sempre calculada pelo
+            sistema, nunca uma escolha manual.
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="botao">Confirmar retorno e autorizar</button>
+            <a href="{{ voltar_url }}" style="margin-left:12px;">Voltar</a>
+        </form>
+    {% else %}
+        {% if valor_a_cobrar is not None %}
+            <p style="font-size:20px;font-weight:700;margin:0 0 20px;">
+                Valor deste atendimento: <span style="color:var(--marca-escura);">R$ {{ valor_a_cobrar }}</span>
+                <span id="valor-com-desconto" style="display:none;font-size:16px;margin-left:8px;">
+                    → com desconto: <span style="color:var(--marca-escura);">R$ <span id="valor-final"></span></span>
+                </span>
+            </p>
+        {% else %}
+            <div class="mensagem error" style="margin-bottom:20px;">
+                Não foi possível calcular o valor deste atendimento automaticamente — cadastre o valor
+                particular do procedimento (Cadastros → Procedimentos) ou o preço no convênio (Cadastros →
+                Convênios) antes de registrar o pagamento (a opção de cortesia continua disponível).
+            </div>
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                {% for erro in form.non_field_errors %}
+                    <div class="mensagem error">{{ erro }}</div>
+                {% endfor %}
+            {% endif %}
+
+            <div class="campo-bloco" style="display:flex;align-items:center;gap:8px;">
+                {{ form.cortesia }}
+                {{ form.cortesia.label_tag }}
+                {% if form.cortesia.help_text %}
+                    <span style="font-size:12px;color:var(--texto-suave);">{{ form.cortesia.help_text }}</span>
+                {% endif %}
+            </div>
+
+            <fieldset id="bloco-desconto" style="border:1px solid var(--borda);border-radius:8px;padding:12px 16px;margin:16px 0;">
+                <legend style="padding:0 6px;font-weight:600;">Desconto (opcional)</legend>
+                <div class="campo-bloco">
+                    {{ form.desconto.label_tag }}
+                    {{ form.desconto }}
+                    <div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">{{ form.desconto.help_text }}</div>
+                    {% for erro in form.desconto.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+                </div>
+                <div id="bloco-desconto-detalhes" style="display:none;">
+                    <div class="campo-bloco">
+                        {{ form.motivo_desconto.label_tag }}
+                        {{ form.motivo_desconto }}
+                        <div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">{{ form.motivo_desconto.help_text }}</div>
+                        {% for erro in form.motivo_desconto.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+                    </div>
+                    {% if form.repasse_acordado %}
+                        <div class="campo-bloco">
+                            {{ form.repasse_acordado.label_tag }}
+                            {{ form.repasse_acordado }}
+                            <div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">
+                                {{ agendamento.profissional.nome }} cobra valor fixo no particular — sem desconto, o repasse
+                                seria <strong>R$ {{ form.repasse_fixo_padrao }}</strong>. {{ form.repasse_acordado.help_text }}
+                            </div>
+                            {% for erro in form.repasse_acordado.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+                        </div>
+                    {% else %}
+                        <div style="font-size:12px;color:var(--texto-suave);">
+                            O repasse de {{ agendamento.profissional.nome }} é calculado pelo percentual dele sobre o valor já com desconto.
+                        </div>
+                    {% endif %}
+                </div>
+            </fieldset>
+
+            <fieldset style="border:1px solid var(--borda);border-radius:8px;padding:12px 16px;margin:16px 0;">
+                <legend style="padding:0 6px;font-weight:600;">Forma de pagamento</legend>
+                <div class="campo-bloco">
+                    {{ form.forma_pagamento_1.label_tag }}
+                    {{ form.forma_pagamento_1 }}
+                    {% for erro in form.forma_pagamento_1.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+                </div>
+
+                <div id="bloco-valor-1" class="campo-bloco" style="display:none;">
+                    {{ form.valor_1.label_tag }}
+                    {{ form.valor_1 }}
+                    {% for erro in form.valor_1.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+                </div>
+
+                <div id="bloco-cartao-1" style="display:none;">
+                    <div class="campo-bloco">
+                        {{ form.valor_recebido_1.label_tag }}
+                        {{ form.valor_recebido_1 }}
+                        <div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">
+                            Valor que efetivamente cai na conta da clínica, já descontada a taxa da maquininha.
+                        </div>
+                        {% for erro in form.valor_recebido_1.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+                    </div>
+                    <div id="bloco-parcelas-1" class="campo-bloco" style="display:none;">
+                        {{ form.parcelas_1.label_tag }}
+                        {{ form.parcelas_1 }}
+                        {% for erro in form.parcelas_1.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+                    </div>
+                </div>
+
+                <div style="font-size:12px;color:var(--texto-suave);margin:10px 0 6px;">
+                    Com uma forma só, o valor é preenchido sozinho (mostrado acima, já com o desconto, se houver). Só escolha
+                    uma 2ª forma se o pagamento foi dividido (ex.: metade dinheiro, metade cartão): aí digite o valor da 1ª
+                    forma e a 2ª é calculada sozinha com o que falta.
+                </div>
+                <div class="campo-bloco">
+                    {{ form.forma_pagamento_2.label_tag }}
+                    {{ form.forma_pagamento_2 }}
+                    {% for erro in form.forma_pagamento_2.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+                </div>
+
+                <div id="bloco-valor-2" class="campo-bloco" style="display:none;">
+                    {{ form.valor_2.label_tag }}
+                    {{ form.valor_2 }}
+                    <div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">
+                        Calculado sozinho: valor do atendimento (já com desconto) menos o valor da 1ª forma.
+                    </div>
+                    {% for erro in form.valor_2.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+                </div>
+
+                <div id="bloco-cartao-2" style="display:none;">
+                    <div class="campo-bloco">
+                        {{ form.valor_recebido_2.label_tag }}
+                        {{ form.valor_recebido_2 }}
+                        <div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">
+                            Valor que efetivamente cai na conta da clínica, já descontada a taxa da maquininha.
+                        </div>
+                        {% for erro in form.valor_recebido_2.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+                    </div>
+                    <div id="bloco-parcelas-2" class="campo-bloco" style="display:none;">
+                        {{ form.parcelas_2.label_tag }}
+                        {{ form.parcelas_2 }}
+                        {% for erro in form.parcelas_2.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+                    </div>
+                </div>
+
+                <div id="resumo-divisao" style="display:none;font-weight:600;margin:10px 0 0;"></div>
+            </fieldset>
+
+            <button type="submit" class="botao">Registrar e autorizar</button>
+            <a href="{{ voltar_url }}" style="margin-left:12px;">Voltar</a>
+        </form>
+
+        <script>
+            (function () {
+                function configurarCartao(sufixo) {
+                    var selectForma = document.getElementById("id_forma_pagamento_" + sufixo);
+                    var blocoCartao = document.getElementById("bloco-cartao-" + sufixo);
+                    var blocoParcelas = document.getElementById("bloco-parcelas-" + sufixo);
+                    if (!selectForma || !blocoCartao || !blocoParcelas) { return; }
+
+                    function atualizarBlocoCartao() {
+                        var ehDebito = selectForma.value === "CARTAO_DEBITO";
+                        var ehCredito = selectForma.value === "CARTAO_CREDITO";
+                        blocoCartao.style.display = (ehDebito || ehCredito) ? "block" : "none";
+                        blocoParcelas.style.display = ehCredito ? "block" : "none";
+                    }
+                    selectForma.addEventListener("change", atualizarBlocoCartao);
+                    atualizarBlocoCartao();
+                }
+                configurarCartao("1");
+                configurarCartao("2");
+
+                // Desconto: mostra motivo/repasse acordado e o valor final; some com cortesia.
+                var campoDesconto = document.getElementById("id_desconto");
+                var detalhes = document.getElementById("bloco-desconto-detalhes");
+                var blocoDesconto = document.getElementById("bloco-desconto");
+                var caixaComDesconto = document.getElementById("valor-com-desconto");
+                var valorFinal = document.getElementById("valor-final");
+                var checkCortesia = document.getElementById("id_cortesia");
+                var valorCheio = {% if valor_a_cobrar is not None %}parseFloat("{{ valor_a_cobrar|stringformat:'s' }}"){% else %}null{% endif %};
+
+                // Campos aceitam 150.000,00 (ver window.Moeda em accounts/base.html).
+                function lerNumero(campo) { return window.Moeda.ler(campo && campo.value); }
+                function emReais(n) { return window.Moeda.emReais(n); }
+
+                // Valor que de fato será cobrado: o do cadastro menos o desconto (se houver).
+                function valorTotalComDesconto() {
+                    if (valorCheio === null) { return null; }
+                    var cortesia = checkCortesia && checkCortesia.checked;
+                    var desconto = cortesia ? null : lerNumero(campoDesconto);
+                    return (desconto && desconto > 0) ? Math.max(valorCheio - desconto, 0) : valorCheio;
+                }
+
+                // Pagamento dividido em 2 formas: mostra "Valor da 1ª forma" e "Valor da 2ª forma";
+                // ao digitar uma, a outra é preenchida com o que falta para fechar o total com desconto.
+                var selectForma2 = document.getElementById("id_forma_pagamento_2");
+                var blocoValor1 = document.getElementById("bloco-valor-1");
+                var blocoValor2 = document.getElementById("bloco-valor-2");
+                var campoValor1 = document.getElementById("id_valor_1");
+                var campoValor2 = document.getElementById("id_valor_2");
+                var resumoDivisao = document.getElementById("resumo-divisao");
+
+                function completarOutro(origem, destino) {
+                    var total = valorTotalComDesconto();
+                    var digitado = lerNumero(origem);
+                    if (total === null || digitado === null || !destino) { return; }
+                    var resto = Math.round((total - digitado) * 100) / 100;
+                    destino.value = resto > 0 ? window.Moeda.formatar(resto) : "";
+                }
+
+                function atualizarDivisao() {
+                    var dividido = !!(selectForma2 && selectForma2.value);
+                    if (blocoValor1) { blocoValor1.style.display = dividido ? "block" : "none"; }
+                    if (blocoValor2) { blocoValor2.style.display = dividido ? "block" : "none"; }
+                    if (!resumoDivisao) { return; }
+                    var total = valorTotalComDesconto();
+                    if (!dividido || total === null) { resumoDivisao.style.display = "none"; return; }
+                    var soma = (lerNumero(campoValor1) || 0) + (lerNumero(campoValor2) || 0);
+                    var diferenca = Math.round((total - soma) * 100) / 100;
+                    var texto = "Soma das formas: " + emReais(soma) + " de " + emReais(total);
+                    if (diferenca > 0) { texto += " — faltam " + emReais(diferenca); }
+                    else if (diferenca < 0) { texto += " — passou " + emReais(-diferenca); }
+                    else { texto += " ✔"; }
+                    resumoDivisao.textContent = texto;
+                    resumoDivisao.style.color = diferenca === 0 ? "var(--marca-escura)" : "#c0392b";
+                    resumoDivisao.style.display = "block";
+                }
+
+                if (selectForma2) {
+                    selectForma2.addEventListener("change", function () {
+                        if (selectForma2.value && campoValor1 && !campoValor1.value && campoValor2 && !campoValor2.value) {
+                            var total = valorTotalComDesconto();
+                            if (total !== null) { campoValor1.value = window.Moeda.formatar(total); }
+                        }
+                        atualizarDivisao();
+                    });
+                }
+                if (campoValor1) { campoValor1.addEventListener("input", function () { completarOutro(campoValor1, campoValor2); atualizarDivisao(); }); }
+                if (campoValor2) { campoValor2.addEventListener("input", function () { completarOutro(campoValor2, campoValor1); atualizarDivisao(); }); }
+
+                function atualizarDesconto() {
+                    if (!campoDesconto) { return; }
+                    var cortesia = checkCortesia && checkCortesia.checked;
+                    if (blocoDesconto) { blocoDesconto.style.display = cortesia ? "none" : ""; }
+                    var desconto = window.Moeda.ler(campoDesconto.value);
+                    var temDesconto = !cortesia && desconto > 0;
+                    // Desconto mudou: recalcula a 2ª forma para continuar fechando com o novo total.
+                    if (campoValor1 && campoValor1.value) { completarOutro(campoValor1, campoValor2); }
+                    atualizarDivisao();
+                    if (detalhes) { detalhes.style.display = temDesconto ? "block" : "none"; }
+                    if (caixaComDesconto && valorFinal) {
+                        if (temDesconto && valorCheio !== null) {
+                            valorFinal.textContent = window.Moeda.formatar(Math.max(valorCheio - desconto, 0));
+                            caixaComDesconto.style.display = "inline";
+                        } else {
+                            caixaComDesconto.style.display = "none";
+                        }
+                    }
+                }
+                if (campoDesconto) { campoDesconto.addEventListener("input", atualizarDesconto); }
+                if (checkCortesia) { checkCortesia.addEventListener("change", atualizarDesconto); }
+                atualizarDesconto();
+            })();
+        </script>
+    {% endif %}
+    {# Paciente desistiu no caixa (pedido da clínica, 23/10/2026) — ver _cancelar_na_hora_do_pagamento. #}
+    <details style="margin-top:28px;border:1px solid #e3b5b0;border-radius:8px;padding:10px 16px;">
+        <summary style="cursor:pointer;font-weight:600;color:#c0392b;">Paciente desistiu? Cancelar este atendimento</summary>
+        <form method="post" style="margin-top:10px;" onsubmit="return confirm('Cancelar o atendimento de {{ agendamento.paciente.nome_completo|escapejs }}? Ele sai da fila de pagamento e da agenda.');">
+            {% csrf_token %}
+            <input type="hidden" name="acao" value="cancelar_atendimento">
+            <div class="campo-bloco">
+                <label for="id_motivo_cancelamento">Motivo (opcional):</label>
+                <input type="text" name="motivo_cancelamento" id="id_motivo_cancelamento" class="campo" maxlength="200" placeholder="Ex.: paciente desistiu na hora de pagar">
+            </div>
+            <button type="submit" class="botao" style="background:#c0392b;">Cancelar atendimento</button>
+        </form>
+    </details>
+{% endblock %}

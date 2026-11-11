@@ -1,0 +1,14 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Confirmar {{ acao_texto|default:"exclusão" }} — Clínica SMEDIM{% endblock %}
+{% block conteudo %}
+    <h2>Confirmar {{ acao_texto|default:"exclusão" }}</h2>
+    <p>
+        Tem certeza que deseja {{ acao_texto|default:"excluir" }} <strong>{{ objeto }}</strong>?
+        {% if aviso_extra %}{{ aviso_extra }}{% else %}Esta ação não pode ser desfeita.{% endif %}
+    </p>
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="botao" style="background:#c0392b;">Sim, {{ acao_texto|default:"excluir" }}</button>
+        <a href="{{ voltar_url }}" style="margin-left:12px;">Cancelar</a>
+    </form>
+{% endblock %}

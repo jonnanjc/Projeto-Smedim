@@ -1,0 +1,53 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Mensagens — Clínica SMEDIM{% endblock %}
+{% block conteudo %}
+    <style>
+        .lista-contatos { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+        .contato {
+            display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--borda);
+            border-radius: 10px; text-decoration: none; color: var(--texto); background: var(--bg-cartao);
+        }
+        .contato:hover { border-color: var(--marca); }
+        .bolinha-status { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; background: #b7bfc6; }
+        .bolinha-status.online { background: var(--marca); }
+        .contato-info { flex: 1; min-width: 0; }
+        .contato-nome { font-weight: 700; font-size: 14px; }
+        .contato-status { font-size: 12px; color: var(--texto-suave); }
+        .contato-previa { font-size: 12px; color: var(--texto-suave); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .badge-nao-lidas {
+            background: var(--marca-escura); color: #fff; border-radius: 999px; min-width: 20px; height: 20px;
+            display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; padding: 0 6px;
+        }
+        .grupo-contatos { margin-top: 18px; }
+        .grupo-titulo { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--texto-suave); margin: 0; }
+        details.grupo-contatos > summary { cursor: pointer; list-style: revert; }
+        .lista-vazia { color: var(--texto-suave); font-size: 13px; margin: 8px 0 0; }
+    </style>
+
+    <h2 style="margin:0 0 4px;">Mensagens</h2>
+    <p style="color:var(--texto-suave);margin:0 0 4px;">
+        Converse com quem estiver usando o sistema agora. As mensagens são apagadas automaticamente à meia-noite.
+    </p>
+
+    <section class="grupo-contatos">
+        <h3 class="grupo-titulo">Online ({{ contatos_online|length }})</h3>
+        <div class="lista-contatos">
+            {% for item in contatos_online %}
+                {% include "mensagens/_contato.html" %}
+            {% empty %}
+                <p class="lista-vazia">Ninguém mais está online no momento.</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    {% if contatos_offline %}
+        <details class="grupo-contatos" {% if offline_tem_nao_lidas %}open{% endif %}>
+            <summary class="grupo-titulo">Offline ({{ contatos_offline|length }})</summary>
+            <div class="lista-contatos">
+                {% for item in contatos_offline %}
+                    {% include "mensagens/_contato.html" %}
+                {% endfor %}
+            </div>
+        </details>
+    {% endif %}
+{% endblock %}

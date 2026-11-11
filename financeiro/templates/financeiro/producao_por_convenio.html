@@ -1,0 +1,136 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Produção por convênio — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <style>
+        .grade-stats-financeiro {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin: 0 0 24px;
+        }
+        .cartao-stat-financeiro {
+            background: var(--bg-cartao); border: 1px solid var(--borda); border-radius: 12px;
+            padding: 14px 16px; display: flex; flex-direction: column; gap: 2px;
+        }
+        .cartao-stat-financeiro strong { font-size: 22px; line-height: 1.1; }
+        .cartao-stat-financeiro span { font-size: 12px; color: var(--texto-suave); }
+        .campo-mes { font-size: 12.5px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--borda); background: var(--bg-cartao); color: var(--texto); font-family: inherit; }
+
+        .cartao-convenio { border: 1px solid var(--borda); border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+        .cartao-convenio[open] > summary { border-bottom: 1px solid var(--borda); }
+        .cartao-convenio.eh-particular { border-style: dashed; }
+        .cartao-convenio summary { list-style: none; cursor: pointer; padding: 12px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .cartao-convenio summary::-webkit-details-marker { display: none; }
+        .cartao-convenio summary .seta { color: var(--texto-suave); font-size: 11px; transition: transform 0.15s ease; }
+        .cartao-convenio[open] summary .seta { transform: rotate(90deg); }
+        .cartao-convenio .nome-conv-grande { font-weight: 700; font-size: 14px; }
+        .cartao-convenio .selo-informativo {
+            font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700;
+            background: var(--bg); border: 1px solid var(--borda); color: var(--texto-suave); border-radius: 20px; padding: 2px 8px;
+        }
+        .cartao-convenio .qtd-resumo { font-size: 11.5px; color: var(--texto-suave); }
+        .cartao-convenio .total-conv { margin-left: auto; text-align: right; }
+        .cartao-convenio .total-conv strong { font-size: 15.5px; }
+        .cartao-convenio .total-conv span { display: block; font-size: 10.5px; color: var(--texto-suave); }
+        .corpo-convenio { padding: 14px 16px; }
+    </style>
+
+    <div class="relatorio-nav no-imprimir">
+        <a href="?ano={{ mes_anterior_ano }}&mes={{ mes_anterior_mes }}{% if convenio_selecionado %}&convenio={{ convenio_selecionado }}{% endif %}">‹ Mês anterior</a>
+        <input type="month" class="campo-mes" value="{{ ano }}-{{ mes|stringformat:'02d' }}" onchange="
+            var p = new URLSearchParams(window.location.search);
+            var partes = this.value.split('-');
+            p.set('ano', partes[0]); p.set('mes', parseInt(partes[1], 10));
+            window.location.search = p.toString();
+        ">
+        <a href="?ano={{ mes_seguinte_ano }}&mes={{ mes_seguinte_mes }}{% if convenio_selecionado %}&convenio={{ convenio_selecionado }}{% endif %}">Mês seguinte ›</a>
+        <a href="{% url 'financeiro:repasse_convenio_lista' %}?ano={{ ano }}&mes={{ mes }}" style="margin-left:auto;">Ver repasse aos profissionais deste mês →</a>
+    </div>
+
+    <form method="get" class="barra-filtro no-imprimir">
+        <input type="hidden" name="ano" value="{{ ano }}">
+        <input type="hidden" name="mes" value="{{ mes }}">
+        <strong>Convênio:</strong>
+        <select name="convenio" onchange="this.form.submit()">
+            <option value="">Todos</option>
+            {% for c in convenios %}
+                <option value="{{ c.pk }}" {% if convenio_selecionado == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.nome }}</option>
+            {% endfor %}
+        </select>
+    </form>
+
+    <div class="relatorio-pagina">
+        <div class="relatorio-topo">
+            <div class="relatorio-marca">
+                <div class="relatorio-selo">S</div>
+                <div>
+                    <div class="relatorio-nome-clinica">Clínica SMEDIM</div>
+                    <div class="relatorio-subtitulo-marca">Produção por convênio</div>
+                </div>
+            </div>
+            <div class="relatorio-titulo">
+                <h2>Produção por Convênio</h2>
+                <div class="relatorio-periodo">{{ data_inicio|date:"F \d\e Y"|capfirst }}</div>
+                <div class="relatorio-gerado">Gerado em {% now "d/m/Y" %} às {% now "H:i" %} por {{ user.get_full_name|default:user.username }}</div>
+            </div>
+        </div>
+
+        <div class="grade-stats-financeiro">
+            <div class="cartao-stat-financeiro">
+                <strong class="fonte-num">R$ {{ total_geral }}</strong>
+                <span>Produção total no mês (convênio + particular)</span>
+            </div>
+            <div class="cartao-stat-financeiro">
+                <strong class="fonte-num">R$ {{ total_convenio }}</strong>
+                <span>Só convênio</span>
+            </div>
+            <div class="cartao-stat-financeiro">
+                <strong class="fonte-num">{{ total_atendimentos }}</strong>
+                <span>Atendimentos no mês</span>
+            </div>
+            <div class="cartao-stat-financeiro">
+                <strong class="fonte-num">{{ convenios_no_periodo }}</strong>
+                <span>Convênios com produção no mês</span>
+            </div>
+            <div class="cartao-stat-financeiro">
+                <strong class="fonte-num">{{ total_retorno_qtd }}</strong>
+                <span>Retornos (inclusos acima, sem valor)</span>
+            </div>
+        </div>
+
+        {% for grupo in grupos %}
+            <details class="cartao-convenio {% if grupo.eh_particular %}eh-particular{% endif %}" open>
+                <summary>
+                    <span class="seta">▶</span>
+                    <span class="nome-conv-grande">{{ grupo.nome }}</span>
+                    {% if grupo.eh_particular %}<span class="selo-informativo">informativo</span>{% endif %}
+                    <span class="qtd-resumo">{{ grupo.especialidades|length }} especialidade{{ grupo.especialidades|length|pluralize }} · {{ grupo.qtd }} atendimento{{ grupo.qtd|pluralize }}</span>
+                    <span class="total-conv"><strong class="fonte-num">R$ {{ grupo.valor }}</strong><span>no mês</span></span>
+                </summary>
+                <div class="corpo-convenio">
+                    {% for especialidade in grupo.especialidades %}
+                        <div class="grupo-procedimento">
+                            <div class="grupo-nome">{{ especialidade.nome }} <span class="qtd">{{ especialidade.qtd }} atend. · R$ {{ especialidade.valor }}</span></div>
+                            {% for item in especialidade.itens %}
+                                <div class="linha-item sub">
+                                    <span class="rotulo">{{ item.procedimento|default:"—" }}</span>
+                                    <span class="valor fonte-num">{{ item.qtd }} atend. · R$ {{ item.valor }}</span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </details>
+        {% empty %}
+            <p style="color:var(--texto-suave);font-size:13px;">Nenhum atendimento neste mês.</p>
+        {% endfor %}
+
+        <div class="rodape-relatorio"><span>Clínica SMEDIM — documento interno</span><span>{{ data_inicio|date:"m/Y" }}</span></div>
+    </div>
+
+    <button type="button" class="botao-imprimir no-imprimir" onclick="window.print()">🖨️ Imprimir este controle</button>
+
+    <p style="font-size:11.5px;color:var(--texto-suave);line-height:1.6;margin-top:18px;max-width:74ch;" class="no-imprimir">
+        Tela só de controle/produção — sem repasse, retenção ou ação nenhuma aqui, é puramente "quanto a clínica fez", por
+        plano, especialidade e procedimento. Particular entra como mais um grupo (informativo) pra dar a visão completa do
+        mês. Pra saber quanto repassar a cada profissional de convênio, veja Repasse aos profissionais.
+    </p>
+{% endblock %}

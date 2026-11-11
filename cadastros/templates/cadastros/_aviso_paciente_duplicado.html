@@ -1,0 +1,24 @@
+{# Aviso de paciente com o mesmo nome no cadastro novo — ver PacienteForm.clean #}
+<div class="mensagem error" style="margin-bottom:16px;">
+    <strong>Atenção: já existe paciente com este nome.</strong> Confira se não é a mesma pessoa antes de cadastrar de novo.
+    <div style="overflow-x:auto;margin-top:8px;">
+    <table>
+        <tr><th>Nome</th><th>Nascimento</th><th>CPF</th><th>Telefone</th><th>Convênio</th><th></th></tr>
+        {% for p in form.duplicados %}
+            <tr>
+                <td>{{ p.nome_completo }}{% if not p.ativo %} <em>(inativo)</em>{% endif %}</td>
+                <td>{{ p.data_nascimento|date:"d/m/Y"|default:"—" }}</td>
+                <td>{{ p.cpf|default:"—" }}</td>
+                <td>{{ p.telefone|default:"—" }}</td>
+                <td>{{ p.convenio|default:"Particular" }}</td>
+                <td style="white-space:nowrap;">
+                    {% if eh_popup %}
+                        <a href="{% url 'cadastros:paciente_novo' %}?popup=1&usar={{ p.pk }}">Usar este</a> ·
+                    {% endif %}
+                    <a href="{% url 'cadastros:paciente_editar' p.pk %}" target="_blank">Abrir cadastro</a>
+                </td>
+            </tr>
+        {% endfor %}
+    </table>
+    </div>
+</div>

@@ -1,0 +1,67 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Movimentações avulsas de caixa — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <h2 style="margin:0;">Movimentações avulsas de caixa</h2>
+    <p style="font-size:13px;color:var(--texto-suave);">
+        Entradas e saídas de dinheiro fora de um atendimento — ex.: aporte pra cobrir um repasse,
+        ou repasse pago a um profissional em dinheiro na mão (mesmo quando o atendimento de origem
+        não foi pago em dinheiro). Entra no cálculo do "Caixa da semana" do
+        <a href="{% url 'financeiro:painel' %}">Painel financeiro</a> e no resultado do proprietário
+        no Fechamento.
+    </p>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 0;">
+        <div style="display:flex;gap:6px;align-items:center;">
+            <a class="cal-nav-botao" style="border:1px solid var(--borda);border-radius:6px;padding:4px 10px;text-decoration:none;" href="?data={{ semana_anterior|date:'Y-m-d' }}">‹ Semana anterior</a>
+            <strong>{{ intervalo_inicio|date:"d/m" }} a {{ intervalo_fim|date:"d/m/Y" }}</strong>
+            <a class="cal-nav-botao" style="border:1px solid var(--borda);border-radius:6px;padding:4px 10px;text-decoration:none;" href="?data={{ semana_seguinte|date:'Y-m-d' }}">Semana seguinte ›</a>
+        </div>
+        {% if perms.accounts.financeiro_lancar %}
+            <a href="{% url 'financeiro:movimentacao_avulsa_nova' %}" class="botao" style="text-decoration:none;">+ Nova movimentação</a>
+        {% endif %}
+    </div>
+
+    <table>
+        <tr>
+            <th>Data</th>
+            <th>Tipo</th>
+            <th>Valor</th>
+            <th>Descrição</th>
+            <th>Profissional</th>
+            <th>Lançado por</th>
+            <th></th>
+        </tr>
+        {% for item in pagina %}
+            <tr>
+                <td>{{ item.data|date:"d/m/Y" }}</td>
+                <td>
+                    {% if item.tipo == "ENTRADA" %}
+                        <span style="color:var(--marca-escura);">Entrada</span>
+                    {% else %}
+                        <span style="color:#c0392b;">Saída</span>
+                    {% endif %}
+                </td>
+                <td>R$ {{ item.valor }}</td>
+                <td>{{ item.descricao }}</td>
+                <td>{{ item.profissional.nome|default:"—" }}</td>
+                <td>{% if item.criado_por %}{{ item.criado_por.get_full_name|default:item.criado_por.username }}{% else %}—{% endif %}</td>
+                <td style="white-space:nowrap;">
+                    {% if perms.accounts.financeiro_lancar %}
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <a href="{% url 'financeiro:movimentacao_avulsa_editar' item.pk %}" class="botao-mini" style="text-decoration:none;">Editar</a>
+                            <a href="{% url 'financeiro:movimentacao_avulsa_excluir' item.pk %}" class="botao-mini" style="text-decoration:none;">Excluir</a>
+                        </div>
+                    {% endif %}
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="7"><em>Nenhuma movimentação avulsa nesta semana.</em></td></tr>
+        {% endfor %}
+    </table>
+{% include 'accounts/_paginacao.html' %}
+
+    <h3 style="margin-top:24px;">
+        Total entradas: R$ {{ total_entradas }} — Total saídas: R$ {{ total_saidas }} — Saldo: R$ {{ saldo }}
+    </h3>
+{% endblock %}

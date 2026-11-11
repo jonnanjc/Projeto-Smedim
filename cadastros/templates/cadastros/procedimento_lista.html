@@ -1,0 +1,60 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Procedimentos — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Procedimentos</h2>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+            <a href="{% url 'cadastros:baixar_planilha_procedimentos' %}">⬇ Baixar planilha do catálogo</a>
+            {% if perms.accounts.procedimento_gerenciar %}
+                <a href="{% url 'cadastros:procedimento_importar' %}" class="botao" style="text-decoration:none;background:var(--marca-escura);">⬆ Importar planilha</a>
+                <a href="{% url 'cadastros:procedimento_novo' %}" class="botao" style="text-decoration:none;">+ Novo procedimento</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <form method="get" style="margin:16px 0;">
+        <input type="text" name="q" class="campo" style="max-width:320px;display:inline-block;" placeholder="Buscar por nome ou código" value="{{ termo }}">
+        <button type="submit" class="botao">Buscar</button>
+        {% if termo %}<a href="{% url 'cadastros:procedimento_lista' %}" style="margin-left:8px;">Limpar</a>{% endif %}
+    </form>
+
+    <table>
+        <tr>
+            <th>Nome</th>
+            <th>Código</th>
+            <th>Tipo</th>
+            <th>Recursos necessários</th>
+            <th>Valor particular</th>
+            <th>Situação</th>
+            <th></th>
+        </tr>
+        {% for procedimento in pagina %}
+            <tr>
+                <td>{{ procedimento.nome }}</td>
+                <td>{{ procedimento.codigo|default:"—" }}</td>
+                <td>
+                    {% if procedimento.permite_repeticao_semanal %}Sessão (repete semanalmente){% elif procedimento.eh_ultrassom %}Avulso{% else %}Consulta (avulso){% endif %}
+                    {% if procedimento.eh_ultrassom %}· <strong>USG</strong>{% endif %}
+                    {% if procedimento.exame_sem_profissional %}· <strong>Exame sem profissional no dia</strong>{% endif %}
+                    {% if procedimento.exame_com_preparo %}· <strong>Exame com preparo (prioridade na fila)</strong>{% endif %}
+                </td>
+                <td>{{ procedimento.recursos_necessarios|default:"—" }}</td>
+                <td>
+                    {% if procedimento.valor_particular %}R$ {{ procedimento.valor_particular }}
+                    {% else %}<span style="color:#c0392b;">não cadastrado</span>{% endif %}
+                </td>
+                <td>{% if procedimento.ativo %}Ativo{% else %}Inativo{% endif %}</td>
+                <td>
+                    {% if perms.accounts.procedimento_gerenciar %}
+                        <a href="{% url 'cadastros:procedimento_editar' procedimento.pk %}">Editar</a>
+                        · <a href="{% url 'cadastros:procedimento_excluir' procedimento.pk %}">Excluir</a>
+                    {% endif %}
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="7"><em>{% if termo %}Nenhum procedimento encontrado para "{{ termo }}".{% else %}Nenhum procedimento cadastrado.{% endif %}</em></td></tr>
+        {% endfor %}
+    </table>
+{% include 'accounts/_paginacao.html' %}
+{% endblock %}

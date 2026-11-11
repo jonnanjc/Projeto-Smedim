@@ -1,0 +1,168 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Relatório detalhado — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <style>
+        .filtro-detalhado { display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin:12px 0; }
+        .filtro-detalhado label { display:block; font-size:12px; color:var(--texto-suave); }
+        .atalhos-periodo a { padding:4px 12px; border-radius:8px; border:1px solid var(--borda); text-decoration:none; font-size:12.5px; }
+        .atalhos-periodo a:hover { border-color: var(--marca); }
+        .selo-guia { display:inline-block; white-space:nowrap; font-size:11.5px; padding:1px 7px; border-radius:10px; background:rgba(52, 120, 246, 0.12); color:var(--marca-escura); margin:1px 0; }
+        .selo-guia strong { font-size:12.5px; }
+        .selo-guia.ultima { background:rgba(230, 126, 34, 0.18); color:#a04b00; }
+    </style>
+
+    <div class="relatorio-nav no-imprimir">
+        {% if navegacao %}
+            <a href="?de={{ navegacao.anterior.0|date:'Y-m-d' }}&ate={{ navegacao.anterior.1|date:'Y-m-d' }}{% if filtros_qs %}&{{ filtros_qs }}{% endif %}">‹ {{ navegacao.rotulo }} anterior</a>
+            <a href="?de={{ navegacao.seguinte.0|date:'Y-m-d' }}&ate={{ navegacao.seguinte.1|date:'Y-m-d' }}{% if filtros_qs %}&{{ filtros_qs }}{% endif %}">{{ navegacao.rotulo }} seguinte ›</a>
+            {% if um_dia %}
+                <a href="{% url 'financeiro:fechamento_diario' %}?data={{ data_inicio|date:'Y-m-d' }}" style="margin-left:auto;">← Ver fechamento diário deste dia</a>
+            {% else %}
+                <a href="{% url 'financeiro:fechamento_mensal' %}?ano={{ data_inicio|date:'Y' }}&mes={{ data_inicio|date:'n' }}" style="margin-left:auto;">← Ver fechamento mensal deste mês</a>
+            {% endif %}
+        {% endif %}
+    </div>
+
+    <div class="relatorio-pagina">
+        <div class="relatorio-topo">
+            <div class="relatorio-marca">
+                <div class="relatorio-selo">S</div>
+                <div>
+                    <div class="relatorio-nome-clinica">Clínica SMEDIM</div>
+                    <div class="relatorio-subtitulo-marca">Relatório detalhado</div>
+                </div>
+            </div>
+            <div class="relatorio-titulo">
+                <h2>Relatório Detalhado</h2>
+                {% if um_dia %}
+                    <div class="relatorio-periodo">{{ data_inicio|date:"l, d \d\e F \d\e Y" }}</div>
+                {% else %}
+                    <div class="relatorio-periodo">{{ data_inicio|date:"d/m/Y" }} a {{ data_fim|date:"d/m/Y" }}</div>
+                {% endif %}
+                <div class="relatorio-gerado">Gerado em {% now "d/m/Y" %} às {% now "H:i" %} por {{ user.get_full_name|default:user.username }}</div>
+            </div>
+        </div>
+
+        <form method="get" class="filtro-detalhado no-imprimir">
+            <div>
+                <label>Data:</label>
+                <input type="date" name="de" value="{{ data_inicio|date:'Y-m-d' }}" class="campo">
+            </div>
+            <div>
+                <label>até:</label>
+                <input type="date" name="ate" value="{{ data_fim|date:'Y-m-d' }}" class="campo">
+            </div>
+            <div>
+                <label>Convênio:</label>
+                <select name="convenio" class="campo">
+                    <option value="">Todos</option>
+                    <option value="particular" {% if convenio_selecionado == "particular" %}selected{% endif %}>Particular</option>
+                    {% for convenio in convenios %}
+                        <option value="{{ convenio.pk }}" {% if convenio_selecionado == convenio.pk|stringformat:"s" %}selected{% endif %}>{{ convenio.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label>Nome do paciente:</label>
+                <input type="text" name="paciente" value="{{ paciente_nome }}" class="campo">
+            </div>
+            <div>
+                <label>Profissional:</label>
+                <select name="profissional" class="campo">
+                    <option value="">Todos</option>
+                    {% for prof in profissionais %}
+                        <option value="{{ prof.pk }}" {% if profissional_selecionado == prof.pk|stringformat:"s" %}selected{% endif %}>{{ prof.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="botao">Procurar</button>
+            <div class="atalhos-periodo" style="display:flex;gap:6px;">
+                <a href="?de={{ hoje|date:'Y-m-d' }}&ate={{ hoje|date:'Y-m-d' }}{% if filtros_qs %}&{{ filtros_qs }}{% endif %}">Hoje</a>
+                <a href="?de={{ mes_atual.0|date:'Y-m-d' }}&ate={{ mes_atual.1|date:'Y-m-d' }}{% if filtros_qs %}&{{ filtros_qs }}{% endif %}">Este mês</a>
+            </div>
+            <span style="margin-left:auto;">{{ pagina.paginator.count }} atendimento(s) no período</span>
+        </form>
+
+        <div class="tabela-scroll">
+            <table class="tabela-detalhe">
+                <thead>
+                    <tr>
+                        {% if not um_dia %}<th>Data</th>{% endif %}
+                        <th>Horário</th><th>Paciente</th><th>Profissional</th><th>Procedimento</th><th>Guia</th><th>Forma</th><th>Valor</th><th>Valor recebido</th><th>Situação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for linha in linhas %}
+                        <tr {% if linha.tem_estorno %}class="linha-estornada"{% endif %}>
+                            {% if not um_dia %}<td class="fonte-num">{{ linha.agendamento.data_hora_inicio|date:"d/m" }}</td>{% endif %}
+                            <td class="fonte-num">{{ linha.agendamento.data_hora_inicio|time:"H:i" }}</td>
+                            <td class="paciente">{{ linha.agendamento.paciente.nome_completo }}</td>
+                            <td>{{ linha.agendamento.profissional.nome }}</td>
+                            <td>{{ linha.itens_resumo }}{% for venda in linha.vendas_pacote %}<br><strong>+ venda do pacote {{ venda.nome }}</strong>{% endfor %}</td>
+                            <td>
+                                {% for guia in linha.guias %}
+                                    <div class="selo-guia{% if guia.ultima %} ultima{% endif %}" title="Guia {{ guia.numero }} — sessão {{ guia.sessoes }} de {{ guia.total }}{% if guia.ultima %} (última da guia){% endif %}">
+                                        <strong class="fonte-num">{{ guia.sessoes }}/{{ guia.total }}</strong> · {{ guia.numero }}
+                                    </div>
+                                {% empty %}
+                                    {% if linha.agendamento.numero_guia %}<span class="fonte-num" style="font-size:12px;">{{ linha.agendamento.numero_guia }}</span>{% else %}<span style="color:var(--texto-suave);">—</span>{% endif %}
+                                {% endfor %}
+                            </td>
+                            <td class="{% if linha.agendamento.forma_atendimento == 'CONVENIO' %}forma-convenio{% endif %}">
+                                {% if linha.coberto_por_pacote %}
+                                    <span class="selo-realizado">Pacote (já pago)</span>
+                                {% elif not linha.tem_item_cobravel %}
+                                    <span class="selo-realizado">Retorno</span>
+                                {% elif linha.agendamento.forma_atendimento == "CONVENIO" %}
+                                    {{ linha.agendamento.convenio|default:"Convênio" }}
+                                {% elif linha.pagamentos.0.forma_pagamento == "CORTESIA" %}
+                                    Cortesia
+                                {% else %}
+                                    {% for p in linha.pagamentos %}{{ p.get_forma_pagamento_display }}{% if not forloop.last %} + {% endif %}{% endfor %}
+                                {% endif %}
+                            </td>
+                            <td class="valor fonte-num">
+                                {% if not linha.tem_item_cobravel %}
+                                    R$ 0,00
+                                {% elif linha.agendamento.forma_atendimento == "CONVENIO" %}
+                                    {% if linha.agendamento.valor_convenio is not None %}R$ {{ linha.agendamento.valor_convenio }}{% else %}<span style="color:#c0392b;font-size:11.5px;">sem valor lançado</span>{% endif %}
+                                {% else %}
+                                    R$ {{ linha.valor_bruto }}
+                                {% endif %}
+                            </td>
+                            <td class="valor fonte-num">
+                                {% if linha.agendamento.forma_atendimento == "CONVENIO" or not linha.tem_item_cobravel %}
+                                    —
+                                {% else %}
+                                    R$ {{ linha.valor_recebido_total }}
+                                {% endif %}
+                            </td>
+                            <td class="acao-linha {% if linha.tem_estorno %}selo-estornado-linha{% else %}selo-realizado{% endif %}">
+                                {% if linha.tem_estorno %}Estornado{% else %}{{ linha.agendamento.get_status_display }}{% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="{% if um_dia %}9{% else %}10{% endif %}" style="color:var(--texto-suave);">Nenhum atendimento no período{% if convenio_selecionado or paciente_nome or profissional_selecionado %} com esses filtros{% endif %}.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="no-imprimir">{% include 'accounts/_paginacao.html' %}</div>
+        <div class="rodape-detalhe">
+            <span>Particular líquido: <span class="fonte-num">R$ {{ particular_liquido_total }}</span></span>
+            <span>Particular recebido: <span class="fonte-num">R$ {{ particular_recebido_total }}</span></span>
+            <span>Convênio: <span class="fonte-num">R$ {{ convenio_total }}</span></span>
+            <span>{{ pagina.paginator.count }} atendimentos</span>
+        </div>
+
+        <div class="rodape-relatorio"><span>Clínica SMEDIM — documento interno</span><span>{% if um_dia %}{{ data_inicio|date:"d/m/Y" }}{% else %}{{ data_inicio|date:"d/m/Y" }} a {{ data_fim|date:"d/m/Y" }}{% endif %}</span></div>
+    </div>
+
+    {% if pagina.has_other_pages %}
+        {# A impressão sai só da página aberta — pra imprimir o período inteiro, abre tudo de uma vez (mais lento). #}
+        <a class="botao-imprimir no-imprimir" style="text-decoration:none;" href="?{% if pagina.qs_base %}{{ pagina.qs_base }}&{% endif %}tudo=1">🖨️ Abrir as {{ pagina.paginator.count }} linhas para imprimir</a>
+    {% else %}
+        <button type="button" class="botao-imprimir no-imprimir" onclick="window.print()">🖨️ Imprimir este relatório</button>
+    {% endif %}
+{% endblock %}

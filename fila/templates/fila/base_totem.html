@@ -1,0 +1,159 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <link rel="icon" type="image/svg+xml" href="{% static 'accounts/img/logo_smedim.svg' %}">
+    <title>{% block titulo %}Fila de atendimento — Clínica SMEDIM{% endblock %}</title>
+    {% block head_extra %}{% endblock %}
+    <style>
+        /*
+          Layout próprio do totem — não estende accounts/base.html de
+          propósito: essa tela roda em um PC público sem login, e o
+          base.html traz menu lateral, links de "Sair", usuário logado etc.
+          que não podem aparecer aqui (requisito: só emitir senha, nada
+          mais). Sem alternância de tema claro/escuro também — é uma tela
+          pública compartilhada, não existe "preferência do usuário".
+        */
+        :root {
+            --marca: #44b285;
+            --marca-escura: #2f7d5e;
+            --bg: #f4f6f9;
+            --texto: #1c1c1c;
+            --texto-suave: #555555;
+            --borda: #dfe3ea;
+            --erro: #a12525;
+            --erro-bg: #fdeaea;
+            --secundario: #3a6ea5;
+            --secundario-escuro: #2c5580;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body {
+            height: 100%;
+            margin: 0;
+            font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--texto);
+            overflow: hidden;
+            user-select: none;
+        }
+        .totem-tela {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 24px;
+        }
+        .totem-logo { height: 80px; margin-bottom: 4px; }
+        .totem-corpo {
+            flex: 1;
+            width: 100%;
+            max-width: 1000px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 26px;
+        }
+        .totem-titulo { font-size: 34px; font-weight: 700; text-align: center; color: var(--texto); margin: 0; }
+        .totem-subtitulo { font-size: 19px; color: var(--texto-suave); text-align: center; margin: -14px 0 0; }
+
+        .botao-totem {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            width: 100%;
+            border: none;
+            border-radius: 20px;
+            padding: 38px 24px;
+            font: inherit;
+            font-size: 30px;
+            font-weight: 700;
+            cursor: pointer;
+            color: #fff;
+            background: var(--marca);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+            text-decoration: none;
+        }
+        .botao-totem:active { background: var(--marca-escura); }
+        .botao-totem.secundario { background: var(--secundario); }
+        .botao-totem.secundario:active { background: var(--secundario-escuro); }
+        .botao-totem.preparo { background: #b8650f; }
+        .botao-totem.preparo:active { background: #8f4e0b; }
+        .botao-totem .icone { font-size: 42px; line-height: 1; }
+
+        .grade-motivos {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            width: 100%;
+        }
+        .cartao-motivo {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            border: 2px solid var(--borda);
+            background: #fff;
+            border-radius: 16px;
+            padding: 20px;
+            font: inherit;
+            font-size: 20px;
+            font-weight: 600;
+            text-align: left;
+            color: var(--texto);
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .cartao-motivo:active { background: var(--bg); border-color: var(--marca); }
+        .cartao-motivo .icone { font-size: 30px; flex-shrink: 0; width: 36px; text-align: center; }
+        .cartao-motivo img.icone { width: 48px; height: auto; }
+
+        .link-voltar {
+            margin-top: 4px;
+            font-size: 18px;
+            color: var(--texto-suave);
+            text-decoration: underline;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font: inherit;
+        }
+
+        .totem-rodape { font-size: 13px; color: var(--texto-suave); padding: 8px 0 2px; }
+
+        @media (max-width: 640px) {
+            .grade-motivos { grid-template-columns: 1fr; }
+            .totem-titulo { font-size: 26px; }
+            .botao-totem { font-size: 24px; padding: 28px 20px; }
+        }
+
+        {% block estilo_extra %}{% endblock %}
+    </style>
+</head>
+<body>
+    <div class="totem-tela">
+        <img class="totem-logo" src="{% static 'accounts/img/logo_smedim.svg' %}" alt="Clínica SMEDIM">
+        <div class="totem-corpo">
+            {% block conteudo %}{% endblock %}
+        </div>
+        <div class="totem-rodape">{% block rodape %}Toque na tela para tirar sua senha{% endblock %}</div>
+    </div>
+    <script>
+        // Toque duplo no totem emitia duas senhas (mesma trava de accounts/base.html, aqui pra
+        // página inteira: o 2º toque pode cair num botão de outro formulário da mesma tela).
+        (function () {
+            var enviado = false;
+            document.addEventListener("submit", function (evento) {
+                if (evento.defaultPrevented || (evento.target.getAttribute("method") || "").toLowerCase() !== "post") { return; }
+                if (enviado) { evento.preventDefault(); return; }
+                enviado = true;
+                setTimeout(function () { enviado = false; }, 10000);
+            });
+            window.addEventListener("pageshow", function () { enviado = false; });
+        })();
+    </script>
+    {% block script_extra %}{% endblock %}
+</body>
+</html>

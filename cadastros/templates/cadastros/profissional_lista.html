@@ -1,0 +1,62 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Profissionais — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Profissionais</h2>
+        {% if perms.accounts.profissional_gerenciar %}
+            <a href="{% url 'cadastros:profissional_novo' %}" class="botao" style="text-decoration:none;">+ Novo profissional</a>
+        {% endif %}
+    </div>
+
+    <table>
+        <tr>
+            <th>Nome</th>
+            <th>Registro</th>
+            <th>Especialidade</th>
+            <th>Login</th>
+            <th>Desconto (%)</th>
+            <th>Situação</th>
+            <th></th>
+        </tr>
+        {% for profissional in pagina %}
+            <tr>
+                <td>{{ profissional.nome }}</td>
+                <td>{{ profissional.registro_profissional|default:"—" }}</td>
+                <td>
+                    {{ profissional.especialidade_exibicao }}
+                    {% with extras=profissional.especialidades_adicionais.all|length %}
+                        {% if extras %}<span title="Tem {{ extras }} especialidade(s) adicional(is)"> +{{ extras }}</span>{% endif %}
+                    {% endwith %}
+                </td>
+                <td>
+                    {% with usuario=profissional.usuario_vinculado %}
+                        {% if usuario %}
+                            {{ usuario.username }}
+                            {% if perms.accounts.usuario_gerenciar %}
+                                · <a href="{% url 'usuario_redefinir_senha' usuario.pk %}">Redefinir senha</a>
+                            {% endif %}
+                        {% else %}
+                            <em>Sem login</em>
+                        {% endif %}
+                    {% endwith %}
+                </td>
+                <td>{{ profissional.percentual_desconto }}{% if profissional.cobra_valor_fixo_particular %} <span style="font-size:12px;color:var(--texto-suave);">(particular: valor fixo)</span>{% endif %}</td>
+                <td>{% if profissional.ativo %}Ativo{% else %}Inativo{% endif %}</td>
+                <td>
+                    {% if perms.accounts.profissional_gerenciar %}
+                        <a href="{% url 'cadastros:profissional_editar' profissional.pk %}">Editar</a>
+                        · <a href="{% url 'cadastros:profissional_horarios' profissional.pk %}">Horários</a>
+                        · <a href="{% url 'cadastros:profissional_excecoes' profissional.pk %}">Datas / exceções</a>
+                        {% if profissional.ativo %}
+                            · <a href="{% url 'cadastros:profissional_desativar' profissional.pk %}">Desativar</a>
+                        {% endif %}
+                    {% endif %}
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="7"><em>Nenhum profissional cadastrado.</em></td></tr>
+        {% endfor %}
+    </table>
+{% include 'accounts/_paginacao.html' %}
+{% endblock %}

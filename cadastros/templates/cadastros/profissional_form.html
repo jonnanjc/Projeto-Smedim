@@ -1,0 +1,216 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}{{ titulo }} — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <h2>{{ titulo }}</h2>
+    <form method="post">
+        {% csrf_token %}
+        {% for campo in form %}
+            <div class="campo-bloco">
+                {{ campo.label_tag }}
+                {{ campo }}
+                {% if campo.help_text %}<div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">{{ campo.help_text }}</div>{% endif %}
+                {% for erro in campo.errors %}
+                    <div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>
+                {% endfor %}
+            </div>
+            {% if campo.name == "especialidade_outra" %}
+                <div class="campo-bloco">
+                    <label>Especialidades adicionais (opcional)</label>
+                    <div style="font-size:12px;color:var(--texto-suave);margin-bottom:8px;">
+                        Use quando este profissional atender por mais de uma especialidade (ex.: Clínico geral
+                        e Acupunturista) — a especialidade principal continua sendo a de cima; aqui só entram as
+                        demais. Ele passa a aparecer em cada uma delas na Central de Atendimento e no totem de senha.
+                    </div>
+                    {{ formset.management_form }}
+                    {% if formset.non_form_errors %}
+                        {% for erro in formset.non_form_errors %}
+                            <div class="mensagem error" style="margin-bottom:6px;">{{ erro }}</div>
+                        {% endfor %}
+                    {% endif %}
+                    <div id="especialidades-formset">
+                        {% for especialidade_form in formset %}
+                            <div class="linha-especialidade-adicional" style="display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;padding:10px;border:1px solid var(--borda);border-radius:8px;flex-wrap:wrap;">
+                                {{ especialidade_form.id }}
+                                <div style="flex:2;min-width:220px;">
+                                    {{ especialidade_form.especialidade }}
+                                    {% for erro in especialidade_form.especialidade.errors %}<div class="mensagem error" style="margin-top:4px;">{{ erro }}</div>{% endfor %}
+                                </div>
+                                <div style="flex:1;min-width:180px;">
+                                    {{ especialidade_form.especialidade_outra }}
+                                    {% for erro in especialidade_form.especialidade_outra.errors %}<div class="mensagem error" style="margin-top:4px;">{{ erro }}</div>{% endfor %}
+                                </div>
+                                <div style="display:none;">{{ especialidade_form.DELETE }}</div>
+                                <button type="button" class="botao-remover-especialidade" style="white-space:nowrap;">Remover</button>
+                                {% for erro in especialidade_form.non_field_errors %}<div class="mensagem error" style="margin-top:4px;flex-basis:100%;">{{ erro }}</div>{% endfor %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <button type="button" id="botao-add-especialidade" class="botao" style="margin-top:4px;">+ Adicionar especialidade</button>
+
+                    <div id="template-especialidade-vazia" style="display:none;">
+                        <div class="linha-especialidade-adicional" style="display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;padding:10px;border:1px solid var(--borda);border-radius:8px;flex-wrap:wrap;">
+                            {{ formset.empty_form.id }}
+                            <div style="flex:2;min-width:220px;">{{ formset.empty_form.especialidade }}</div>
+                            <div style="flex:1;min-width:180px;">{{ formset.empty_form.especialidade_outra }}</div>
+                            <button type="button" class="botao-remover-especialidade" style="white-space:nowrap;">Remover</button>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+            {% if campo.name == "cobra_valor_fixo_particular" %}
+                <div class="campo-bloco" id="bloco-valores-fixos">
+                    <label>Valores fixos no particular</label>
+                    <div style="font-size:12px;color:var(--texto-suave);margin-bottom:8px;">
+                        Um procedimento/consulta por linha: quanto o paciente paga e quanto é repassado ao
+                        profissional, sempre (sem percentual). Só estes procedimentos poderão ser agendados como
+                        particular para este profissional. Mudar um valor aqui vale só para os próximos pagamentos
+                        — o que já foi pago não é recalculado. A lista mostra só os procedimentos habilitados para
+                        este profissional (Cadastros → Procedimentos → "profissionais habilitados"){% if not form.instance.pk %}
+                        — salve o profissional e vincule os procedimentos dele antes de preencher esta tabela{% endif %}.
+                    </div>
+                    {{ formset_valores.management_form }}
+                    {% for erro in formset_valores.non_form_errors %}
+                        <div class="mensagem error" style="margin-bottom:6px;">{{ erro }}</div>
+                    {% endfor %}
+                    <div id="valores-fixos-formset">
+                        {% for valor_form in formset_valores %}
+                            <div class="linha-valor-fixo" style="display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;padding:10px;border:1px solid var(--borda);border-radius:8px;flex-wrap:wrap;">
+                                {{ valor_form.id }}
+                                <div style="flex:2;min-width:220px;">
+                                    <div style="font-size:12px;color:var(--texto-suave);">Procedimento</div>
+                                    {{ valor_form.procedimento }}
+                                    {% for erro in valor_form.procedimento.errors %}<div class="mensagem error" style="margin-top:4px;">{{ erro }}</div>{% endfor %}
+                                </div>
+                                <div style="flex:1;min-width:140px;">
+                                    <div style="font-size:12px;color:var(--texto-suave);">Valor cobrado (R$)</div>
+                                    {{ valor_form.valor_cobrado }}
+                                    {% for erro in valor_form.valor_cobrado.errors %}<div class="mensagem error" style="margin-top:4px;">{{ erro }}</div>{% endfor %}
+                                </div>
+                                <div style="flex:1;min-width:140px;">
+                                    <div style="font-size:12px;color:var(--texto-suave);">Repasse ao profissional (R$)</div>
+                                    {{ valor_form.valor_repasse }}
+                                    {% for erro in valor_form.valor_repasse.errors %}<div class="mensagem error" style="margin-top:4px;">{{ erro }}</div>{% endfor %}
+                                </div>
+                                <div style="display:none;">{{ valor_form.DELETE }}</div>
+                                <button type="button" class="botao-remover-linha" style="white-space:nowrap;align-self:flex-end;">Remover</button>
+                                {% for erro in valor_form.non_field_errors %}<div class="mensagem error" style="margin-top:4px;flex-basis:100%;">{{ erro }}</div>{% endfor %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <button type="button" id="botao-add-valor-fixo" class="botao" style="margin-top:4px;">+ Adicionar procedimento</button>
+
+                    <div id="template-valor-fixo-vazio" style="display:none;">
+                        <div class="linha-valor-fixo" style="display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;padding:10px;border:1px solid var(--borda);border-radius:8px;flex-wrap:wrap;">
+                            {{ formset_valores.empty_form.id }}
+                            <div style="flex:2;min-width:220px;"><div style="font-size:12px;color:var(--texto-suave);">Procedimento</div>{{ formset_valores.empty_form.procedimento }}</div>
+                            <div style="flex:1;min-width:140px;"><div style="font-size:12px;color:var(--texto-suave);">Valor cobrado (R$)</div>{{ formset_valores.empty_form.valor_cobrado }}</div>
+                            <div style="flex:1;min-width:140px;"><div style="font-size:12px;color:var(--texto-suave);">Repasse ao profissional (R$)</div>{{ formset_valores.empty_form.valor_repasse }}</div>
+                            <button type="button" class="botao-remover-linha" style="white-space:nowrap;align-self:flex-end;">Remover</button>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        {% endfor %}
+        {% if form.non_field_errors %}
+            {% for erro in form.non_field_errors %}
+                <div class="mensagem error">{{ erro }}</div>
+            {% endfor %}
+        {% endif %}
+        <button type="submit" class="botao">Salvar</button>
+        <a href="{{ voltar_url }}" style="margin-left:12px;">Cancelar</a>
+    </form>
+
+    <script>
+        (function () {
+            // Tabela de valores fixos: mesma mecânica de adicionar/remover linha das
+            // especialidades adicionais (abaixo), e só aparece com a caixa marcada.
+            var caixaValorFixo = document.getElementById("id_cobra_valor_fixo_particular");
+            var blocoValores = document.getElementById("bloco-valores-fixos");
+            var contentorValores = document.getElementById("valores-fixos-formset");
+            var templateValor = document.getElementById("template-valor-fixo-vazio");
+            var totalValoresInput = document.getElementById("id_valores_fixos-TOTAL_FORMS");
+
+            function atualizarVisibilidade() {
+                if (caixaValorFixo && blocoValores) {
+                    blocoValores.style.display = caixaValorFixo.checked ? "" : "none";
+                }
+            }
+            if (caixaValorFixo) {
+                caixaValorFixo.addEventListener("change", atualizarVisibilidade);
+                atualizarVisibilidade();
+            }
+            var botaoAddValor = document.getElementById("botao-add-valor-fixo");
+            if (botaoAddValor) {
+                botaoAddValor.addEventListener("click", function () {
+                    if (!templateValor || !contentorValores || !totalValoresInput) { return; }
+                    var indice = parseInt(totalValoresInput.value, 10);
+                    var wrapper = document.createElement("div");
+                    wrapper.innerHTML = templateValor.innerHTML.split("__prefix__").join(String(indice));
+                    contentorValores.appendChild(wrapper.firstElementChild);
+                    totalValoresInput.value = String(indice + 1);
+                });
+            }
+            if (contentorValores) {
+                contentorValores.addEventListener("click", function (evento) {
+                    if (!evento.target.matches(".botao-remover-linha")) { return; }
+                    var linha = evento.target.closest(".linha-valor-fixo");
+                    var campoId = linha.querySelector("input[name$='-id']");
+                    if (campoId && campoId.value) {
+                        var checkboxDelete = linha.querySelector("input[name$='-DELETE']");
+                        if (checkboxDelete) { checkboxDelete.checked = true; }
+                        linha.style.display = "none";
+                    } else {
+                        linha.remove();
+                    }
+                });
+            }
+        })();
+
+        (function () {
+            var contentorEspecialidades = document.getElementById("especialidades-formset");
+            var templateVazio = document.getElementById("template-especialidade-vazia");
+            var totalFormsInput = document.getElementById("id_especialidades_adicionais-TOTAL_FORMS");
+
+            function removerLinha(botao) {
+                var linha = botao.closest(".linha-especialidade-adicional");
+                if (!linha) { return; }
+                var campoId = linha.querySelector("input[name$='-id']");
+                if (campoId && campoId.value) {
+                    // Linha já salva no banco: marca a checkbox DELETE (escondida) e só esconde —
+                    // é assim que o Django sabe excluir aquela especialidade adicional ao salvar.
+                    var checkboxDelete = linha.querySelector("input[name$='-DELETE']");
+                    if (checkboxDelete) { checkboxDelete.checked = true; }
+                    linha.style.display = "none";
+                } else {
+                    // Linha nova (adicionada agora, nunca salva): remove do DOM de vez.
+                    linha.remove();
+                }
+            }
+
+            function adicionarLinhaEspecialidade() {
+                if (!templateVazio || !contentorEspecialidades || !totalFormsInput) { return; }
+                var indice = parseInt(totalFormsInput.value, 10);
+                var wrapperTemporario = document.createElement("div");
+                wrapperTemporario.innerHTML = templateVazio.innerHTML.split("__prefix__").join(String(indice));
+                var novaLinha = wrapperTemporario.firstElementChild;
+                contentorEspecialidades.appendChild(novaLinha);
+                totalFormsInput.value = String(indice + 1);
+            }
+
+            var botaoAdd = document.getElementById("botao-add-especialidade");
+            if (botaoAdd) {
+                botaoAdd.addEventListener("click", adicionarLinhaEspecialidade);
+            }
+            if (contentorEspecialidades) {
+                // Delegação de evento: cobre tanto as linhas já renderizadas pelo servidor quanto
+                // as adicionadas depois via JS, sem precisar religar listener por linha.
+                contentorEspecialidades.addEventListener("click", function (evento) {
+                    if (evento.target.matches(".botao-remover-especialidade")) {
+                        removerLinha(evento.target);
+                    }
+                });
+            }
+        })();
+    </script>
+{% endblock %}

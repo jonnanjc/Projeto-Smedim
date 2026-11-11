@@ -1,0 +1,36 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Salas — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Salas / Consultórios</h2>
+        <a href="{% url 'cadastros:sala_novo' %}" class="botao" style="text-decoration:none;">+ Nova sala</a>
+    </div>
+    <p style="font-size:13px;color:var(--texto-suave);">
+        Cadastro simples de salas — renomeie ou adicione salas livremente conforme a planta real da clínica.
+        Usadas pelo profissional para escolher "estou atendendo na sala X" em "Minha agenda", e na grade de
+        ocupação de salas (Agenda → Ocupação de salas).
+    </p>
+
+    <table>
+        <tr>
+            <th>Nome</th>
+            <th>Recepção própria</th>
+            <th>Situação</th>
+            <th></th>
+        </tr>
+        {% for sala in salas %}
+            <tr>
+                <td>{{ sala.nome }}</td>
+                <td>{% if sala.tem_recepcao_propria %}{{ sala.lugares_recepcao_propria }} lugares{% else %}—{% endif %}</td>
+                <td>{% if sala.ativa %}Ativa{% else %}Inativa{% endif %}</td>
+                <td>
+                    <a href="{% url 'cadastros:sala_editar' sala.pk %}">Editar</a>
+                    · <a href="{% url 'cadastros:sala_excluir' sala.pk %}">Excluir</a>
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="4"><em>Nenhuma sala cadastrada.</em></td></tr>
+        {% endfor %}
+    </table>
+{% endblock %}

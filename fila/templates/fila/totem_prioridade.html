@@ -1,0 +1,29 @@
+{% extends "fila/base_totem.html" %}
+{% load static %}
+
+{% block conteudo %}
+    <h1 class="totem-titulo">Qual dessas opções é a sua?</h1>
+    <p class="totem-subtitulo">Toque em apenas uma — a que mais combina com sua situação agora.</p>
+
+    <form method="post" action="{% url 'fila:totem_emitir' %}" style="width: 100%;">
+        {% csrf_token %}
+        <input type="hidden" name="tipo" value="{{ tipo_prioritario }}">
+        <input type="hidden" name="especialidade" value="{{ especialidade }}">
+        <input type="hidden" name="procedimento" value="{{ procedimento }}">
+        <input type="hidden" name="profissional" value="{{ profissional }}">
+        <div class="grade-motivos">
+            {% for valor, icone, rotulo in motivos %}
+                <button type="submit" name="motivo" value="{{ valor }}" class="cartao-motivo">
+                    {% if "/" in icone %}
+                        <img class="icone" src="{% static icone %}" alt="">
+                    {% else %}
+                        <span class="icone">{{ icone }}</span>
+                    {% endif %}
+                    <span>{{ rotulo }}</span>
+                </button>
+            {% endfor %}
+        </div>
+    </form>
+
+    <a href="{% url 'fila:totem_tipo' %}?especialidade={{ especialidade|urlencode }}&procedimento={{ procedimento|urlencode }}&profissional={{ profissional|urlencode }}" class="link-voltar">‹ Voltar</a>
+{% endblock %}

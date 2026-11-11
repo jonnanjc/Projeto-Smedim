@@ -1,0 +1,99 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Lote {{ lote.identificacao }} — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <style>
+        .botao-mini {
+            display: inline-block;
+            background: none;
+            border: 1px solid var(--borda);
+            color: var(--texto);
+            border-radius: 14px;
+            padding: 4px 11px;
+            font-size: 12px;
+            line-height: 1.5;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+        .botao-mini:hover { border-color: var(--marca); }
+        tr.linha-diferenca td { background: #fdf3e0; }
+        html[data-tema="escuro"] tr.linha-diferenca td { background: #362a12; }
+        .aviso-linha { font-size: 12px; color: #8a5a00; }
+        html[data-tema="escuro"] .aviso-linha { color: #f0cd8a; }
+    </style>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+        <h2 style="margin:0;">Lote {{ lote.identificacao }} — {{ lote.convenio.nome }}</h2>
+        {% if perms.accounts.faturamento_retorno_lancar %}
+            <a href="{% url 'financeiro:lote_dar_baixa' lote.pk %}" class="botao" style="text-decoration:none;">Dar baixa no lote</a>
+        {% endif %}
+    </div>
+    <p style="font-size:13px;color:var(--texto-suave);">
+        Enviado em {{ lote.data_envio|date:"d/m/Y" }} — situação: <strong>{{ lote.get_status_display }}</strong>
+        {% if lote.status == "ENVIADO" and perms.accounts.faturamento_lote_lancar %}
+            — <a href="{% url 'financeiro:lote_editar' lote.pk %}">editar lote</a>
+            — <a href="{% url 'financeiro:lote_excluir' lote.pk %}" style="color:#c0392b;">excluir lote</a>
+        {% endif %}
+        — <a href="{% url 'financeiro:lote_lista' %}">voltar para a lista</a>
+    </p>
+
+    <div style="display:flex;gap:24px;flex-wrap:wrap;margin:16px 0;">
+        <div><strong>Produzido:</strong> R$ {{ lote.valor_produzido }}</div>
+        <div><strong>Enviado:</strong> R$ {{ lote.valor_total_enviado }}</div>
+        <div><strong>Pago:</strong> R$ {{ lote.valor_pago }}</div>
+        <div><strong>Glosado:</strong> R$ {{ lote.valor_glosado }}</div>
+    </div>
+
+    {% if lote.diferenca_enviado %}
+        <div class="mensagem warning">
+            ⚠ Pago (R$ {{ lote.valor_pago }}) + Glosado (R$ {{ lote.valor_glosado }}) não bate com o
+            Enviado (R$ {{ lote.valor_total_enviado }}) — confira se falta lançar retorno de algum
+            atendimento, ou registrar glosa em algum dos itens destacados abaixo.
+        </div>
+    {% endif %}
+
+    <table>
+        <tr>
+            <th>Data</th>
+            <th>Paciente</th>
+            <th>Profissional</th>
+            <th>Procedimento</th>
+            <th>Produzido</th>
+            <th>Retorno</th>
+            <th></th>
+        </tr>
+        {% for linha in linhas %}
+            <tr{% if linha.retorno.diferenca_produzido %} class="linha-diferenca"{% endif %}>
+                <td>{{ linha.agendamento.data_hora_inicio|date:"d/m/Y" }}</td>
+                <td>{{ linha.agendamento.paciente.nome_completo }}</td>
+                <td>{{ linha.agendamento.profissional.nome }}</td>
+                <td>{{ linha.agendamento.itens_resumo }}</td>
+                <td>R$ {{ linha.agendamento.valor_convenio|default:"0,00" }}</td>
+                <td>
+                    {% if linha.retorno %}
+                        Pago R$ {{ linha.retorno.valor_pago }} / Glosado R$ {{ linha.retorno.valor_glosado }}
+                        <br>
+                        <span style="font-size:12px;color:var(--texto-suave);">
+                            em {{ linha.retorno.data_retorno|date:"d/m/Y" }}{% if linha.retorno.motivo_glosa %} — {{ linha.retorno.motivo_glosa }}{% endif %}
+                        </span>
+                        {% if linha.retorno.diferenca_produzido %}
+                            <br>
+                            <span class="aviso-linha">⚠ não bate com o produzido (dif. R$ {{ linha.retorno.diferenca_absoluta }})</span>
+                        {% endif %}
+                    {% else %}
+                        <span style="color:var(--texto-suave);">Aguardando retorno</span>
+                    {% endif %}
+                </td>
+                <td style="white-space:nowrap;">
+                    {% if perms.accounts.faturamento_retorno_lancar %}
+                        <a href="{% url 'financeiro:retorno_lancar' lote.pk linha.agendamento.pk %}" class="botao-mini" style="text-decoration:none;">
+                            {% if linha.retorno %}Corrigir retorno{% else %}Lançar retorno{% endif %}
+                        </a>
+                    {% endif %}
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="7"><em>Nenhum atendimento incluído neste lote.</em></td></tr>
+        {% endfor %}
+    </table>
+{% endblock %}

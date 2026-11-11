@@ -1,0 +1,25 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}{% if movimentacao %}Editar{% else %}Nova{% endif %} movimentação avulsa — Clínica SMEDIM{% endblock %}
+{% block conteudo %}
+    <h2>{% if movimentacao %}Editar movimentação avulsa{% else %}Nova movimentação avulsa{% endif %}</h2>
+    <form method="post">
+        {% csrf_token %}
+        {% for campo in form %}
+            <div class="campo-bloco">
+                {{ campo.label_tag }}
+                {{ campo }}
+                {% if campo.help_text %}<div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">{{ campo.help_text }}</div>{% endif %}
+                {% for erro in campo.errors %}
+                    <div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+        {% if form.non_field_errors %}
+            {% for erro in form.non_field_errors %}
+                <div class="mensagem error">{{ erro }}</div>
+            {% endfor %}
+        {% endif %}
+        <button type="submit" class="botao">Salvar</button>
+        <a href="{% url 'financeiro:movimentacao_avulsa_lista' %}" style="margin-left:12px;">Cancelar</a>
+    </form>
+{% endblock %}

@@ -1,0 +1,25 @@
+# Segredos (senhas, chave do Django)
+.env
+
+# Bancos de dados e backups: contêm dados de pacientes
+db.sqlite3*
+*.bak*
+*.sql
+*.dump
+
+# Arquivos enviados pelos usuários
+media/
+
+# Ambiente Python e arquivos gerados
+venv/
+__pycache__/
+*.pyc
+
+# Pacotes de atualização
+*.zip
+
+# Modelo de voz (61 MB) - fica fora do GitHub; copiar à parte
+voz/*.onnx
+
+# Configurações locais do Claude
+.claude/

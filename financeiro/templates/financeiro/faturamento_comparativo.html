@@ -1,0 +1,79 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Produção x envio x retorno (convênio) — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <style>
+        .grade-stats-financeiro {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin: 16px 0 24px;
+        }
+        .cartao-stat-financeiro {
+            background: var(--bg-cartao); border: 1px solid var(--borda); border-radius: 12px;
+            padding: 14px 16px; display: flex; flex-direction: column; gap: 2px;
+        }
+        .cartao-stat-financeiro strong { font-size: 22px; line-height: 1.1; }
+        .cartao-stat-financeiro span { font-size: 12px; color: var(--texto-suave); }
+        .campo-mes { font-size: 12.5px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--borda); background: var(--bg-cartao); color: var(--texto); font-family: inherit; }
+    </style>
+
+    <h2 style="margin:0;">Produção x envio x retorno (convênio)</h2>
+    <p style="font-size:13px;color:var(--texto-suave);">
+        Produzido vem da mesma produção de <a href="{% url 'financeiro:producao_por_convenio' %}">Produção por convênio</a>
+        (atendimentos Autorizados ou Realizados no mês). Enviado/Pago/Glosado vêm dos <a href="{% url 'financeiro:lote_lista' %}">Lotes de
+        faturamento</a> lançados — cada métrica pela data do próprio evento (envio do lote / retorno do convênio), não
+        pela data do atendimento original.
+    </p>
+
+    <div class="relatorio-nav no-imprimir">
+        <a href="?ano={{ mes_anterior_ano }}&mes={{ mes_anterior_mes }}{% if convenio_selecionado %}&convenio={{ convenio_selecionado }}{% endif %}">‹ Mês anterior</a>
+        <input type="month" class="campo-mes" value="{{ ano }}-{{ mes|stringformat:'02d' }}" onchange="
+            var p = new URLSearchParams(window.location.search);
+            var partes = this.value.split('-');
+            p.set('ano', partes[0]); p.set('mes', parseInt(partes[1], 10));
+            window.location.search = p.toString();
+        ">
+        <a href="?ano={{ mes_seguinte_ano }}&mes={{ mes_seguinte_mes }}{% if convenio_selecionado %}&convenio={{ convenio_selecionado }}{% endif %}">Mês seguinte ›</a>
+    </div>
+
+    <form method="get" class="barra-filtro no-imprimir">
+        <input type="hidden" name="ano" value="{{ ano }}">
+        <input type="hidden" name="mes" value="{{ mes }}">
+        <strong>Convênio:</strong>
+        <select name="convenio" onchange="this.form.submit()">
+            <option value="">Todos</option>
+            {% for c in convenios %}
+                <option value="{{ c.pk }}" {% if convenio_selecionado == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.nome }}</option>
+            {% endfor %}
+        </select>
+    </form>
+
+    <div class="grade-stats-financeiro">
+        <div class="cartao-stat-financeiro"><strong>R$ {{ totais.produzido }}</strong><span>Produzido no mês</span></div>
+        <div class="cartao-stat-financeiro"><strong>R$ {{ totais.enviado }}</strong><span>Enviado ao convênio (lote)</span></div>
+        <div class="cartao-stat-financeiro"><strong>R$ {{ totais.pago }}</strong><span>Pago pelo convênio</span></div>
+        <div class="cartao-stat-financeiro"><strong>R$ {{ totais.glosado }}</strong><span>Glosado</span></div>
+        <div class="cartao-stat-financeiro"><strong>R$ {{ totais.pendente_lote }}</strong><span>Produzido ainda sem lote</span></div>
+    </div>
+
+    <table>
+        <tr>
+            <th>Convênio</th>
+            <th>Produzido</th>
+            <th>Enviado</th>
+            <th>Pago</th>
+            <th>Glosado</th>
+            <th>Pendente de lote</th>
+        </tr>
+        {% for linha in linhas %}
+            <tr>
+                <td>{{ linha.convenio.nome }}</td>
+                <td>R$ {{ linha.produzido }}</td>
+                <td>R$ {{ linha.enviado }}</td>
+                <td>R$ {{ linha.pago }}</td>
+                <td>R$ {{ linha.glosado }}</td>
+                <td>R$ {{ linha.pendente_lote }}</td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="6"><em>Nenhuma movimentação neste mês.</em></td></tr>
+        {% endfor %}
+    </table>
+{% endblock %}

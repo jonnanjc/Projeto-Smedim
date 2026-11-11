@@ -1,0 +1,97 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Painel financeiro — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <style>
+        .grade-stats-financeiro {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin: 16px 0 24px;
+        }
+        .cartao-stat-financeiro {
+            background: var(--bg-cartao); border: 1px solid var(--borda); border-radius: 12px;
+            padding: 14px 16px; display: flex; flex-direction: column; gap: 2px;
+        }
+        .cartao-stat-financeiro strong { font-size: 24px; line-height: 1.1; }
+        .cartao-stat-financeiro span { font-size: 12px; color: var(--texto-suave); }
+        .cartao-stat-financeiro .rodape { font-size: 11px; color: var(--texto-suave); margin-top: 4px; }
+    </style>
+
+    <h2 style="margin:0;">Painel financeiro</h2>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 0;">
+        <div style="display:flex;gap:6px;align-items:center;">
+            <a class="cal-nav-botao" style="border:1px solid var(--borda);border-radius:6px;padding:4px 10px;text-decoration:none;" href="?data={{ semana_anterior|date:'Y-m-d' }}">‹ Semana anterior</a>
+            <strong>{{ intervalo_inicio|date:"d/m" }} a {{ intervalo_fim|date:"d/m/Y" }}</strong>
+            <a class="cal-nav-botao" style="border:1px solid var(--borda);border-radius:6px;padding:4px 10px;text-decoration:none;" href="?data={{ semana_seguinte|date:'Y-m-d' }}">Semana seguinte ›</a>
+        </div>
+    </div>
+
+    <div class="grade-stats-financeiro">
+        <div class="cartao-stat-financeiro">
+            <strong>R$ {{ recebido_particular_total }}</strong>
+            <span>Recebido particular na semana</span>
+        </div>
+        <div class="cartao-stat-financeiro">
+            <strong style="color:var(--marca-escura);">R$ {{ caixa_dinheiro_semana }}</strong>
+            <span>Caixa da semana (dinheiro)</span>
+            <span class="rodape">todo dinheiro recebido (inclui a parte dos profissionais ainda não repassada), + entradas e − saídas avulsas (inclui repasse pago em dinheiro)</span>
+        </div>
+        <div class="cartao-stat-financeiro">
+            <strong>R$ {{ avulsas_entradas_semana }} <span style="font-size:14px;color:var(--texto-suave);">/</span> R$ {{ avulsas_saidas_semana }}</strong>
+            <span>Movimentações avulsas na semana (entradas / saídas)</span>
+            <span class="rodape">{{ avulsas_qtd_semana }} lançamento(s) — <a href="{% url 'financeiro:movimentacao_avulsa_lista' %}">ver detalhes</a></span>
+        </div>
+        <div class="cartao-stat-financeiro">
+            <strong style="color:#c0392b;">R$ {{ estornos_semana_total }}</strong>
+            <span>Estornos da semana</span>
+            <span class="rodape">{{ estornos_semana_qtd }} estorno(s) processado(s)</span>
+        </div>
+        <div class="cartao-stat-financeiro">
+            <strong style="color:#c0392b;">R$ {{ repasse_pendente_total }}</strong>
+            <span>Repasse pendente ao profissional</span>
+            <span class="rodape">{{ repasse_pendente_qtd }} atendimento(s) — <a href="{% url 'agenda:relatorio_repasses_semanal' %}">ver detalhes</a></span>
+        </div>
+        <div class="cartao-stat-financeiro">
+            <strong>R$ {{ convenio_a_receber_total }}</strong>
+            <span>A receber de convênio</span>
+            <span class="rodape">
+                {{ convenio_a_receber_qtd }} atendimento(s) com valor lançado
+                {% if convenio_pendente_lancamento_qtd %}· {{ convenio_pendente_lancamento_qtd }} sem valor lançado ainda{% endif %}
+                {% if guias_sessao_pendentes_qtd %}· <a href="{% url 'agenda:guias_pendentes' %}">{{ guias_sessao_pendentes_qtd }} guia{{ guias_sessao_pendentes_qtd|pluralize }} de sessão a autorizar</a>{% endif %}
+                — <a href="{% url 'financeiro:contas_receber_lista' %}">ver detalhes</a>
+            </span>
+        </div>
+        <div class="cartao-stat-financeiro">
+            <strong style="color:var(--marca-escura);">R$ {{ convenio_recebido_total }}</strong>
+            <span>Convênio recebido na semana</span>
+        </div>
+        <div class="cartao-stat-financeiro">
+            <strong>{{ total_atendimentos_realizados }}</strong>
+            <span>Atendimentos autorizados/realizados na semana</span>
+        </div>
+        <div class="cartao-stat-financeiro">
+            <strong>{{ cortesia_qtd }}</strong>
+            <span>Atendimentos cortesia (sem cobrança)</span>
+        </div>
+        <div class="cartao-stat-financeiro">
+            <strong>{{ retorno_qtd }}</strong>
+            <span>Retornos (sem cobrança)</span>
+        </div>
+    </div>
+
+    <h3 style="margin:0 0 8px;font-size:14px;color:var(--texto-suave);">Recebido particular por forma de pagamento</h3>
+    <p style="margin:0 0 8px;font-size:12px;color:var(--texto-suave);">
+        Cartão débito/crédito já com a taxa da maquininha descontada, quando informada no recebimento.
+    </p>
+    <table>
+        <tr>
+            <th>Forma de pagamento</th>
+            <th>Valor</th>
+        </tr>
+        {% for rotulo, valor in recebido_por_forma %}
+            <tr>
+                <td>{{ rotulo }}</td>
+                <td>R$ {{ valor }}</td>
+            </tr>
+        {% endfor %}
+    </table>
+{% endblock %}

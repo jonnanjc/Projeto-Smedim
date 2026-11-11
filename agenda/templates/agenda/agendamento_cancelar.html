@@ -1,0 +1,35 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Cancelar agendamento — Clínica SMEDIM{% endblock %}
+{% block conteudo %}
+    <h2>Cancelar agendamento</h2>
+    <p>
+        Tem certeza que deseja cancelar o atendimento de <strong>{{ agendamento.paciente.nome_completo }}</strong>
+        em {{ agendamento.data_hora_inicio|date:"d/m/Y" }} ({{ agendamento.horario_exibicao }})?
+        O agendamento fica marcado como Cancelado, sem apagar o histórico.
+    </p>
+
+    <form method="post">
+        {% csrf_token %}
+
+        {% if quantidade_futuros_serie > 1 %}
+            <div class="campo-bloco" style="margin-bottom:16px;">
+                <span style="display:block;font-weight:600;margin-bottom:8px;">Este atendimento faz parte de uma repetição semanal — o que deseja cancelar?</span>
+                <label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;cursor:pointer;">
+                    <input type="radio" name="modo" value="somente_este" checked style="margin-top:3px;">
+                    <span>Cancelar <strong>só este atendimento</strong> — os demais dessa repetição continuam agendados normalmente.</span>
+                </label>
+                <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">
+                    <input type="radio" name="modo" value="serie_futura" style="margin-top:3px;">
+                    <span>
+                        Cancelar <strong>este e todos os próximos</strong> desta repetição —
+                        {{ quantidade_futuros_serie }} atendimento(s) a partir de {{ agendamento.data_hora_inicio|date:"d/m/Y" }}
+                        (sessões anteriores, já passadas, não são afetadas).
+                    </span>
+                </label>
+            </div>
+        {% endif %}
+
+        <button type="submit" class="botao" style="background:#c0392b;">Sim, cancelar</button>
+        <a href="{{ voltar_url }}" style="margin-left:12px;">Voltar</a>
+    </form>
+{% endblock %}

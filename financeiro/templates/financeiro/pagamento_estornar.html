@@ -1,0 +1,36 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Estornar pagamento — Clínica SMEDIM{% endblock %}
+{% block conteudo %}
+    <h2>Estornar pagamento</h2>
+    <p>
+        Tem certeza que deseja estornar o pagamento de
+        <strong>{{ pagamento.agendamento.paciente.nome_completo }}</strong>
+        ({{ pagamento.agendamento.data_hora_inicio|date:"d/m/Y" }}) —
+        <strong>{{ pagamento.get_forma_pagamento_display }}, R$ {{ pagamento.valor }}</strong>?
+        O valor volta para o paciente e some da produção do profissional.
+        {% if pagamento.repasse_pago %}
+            <br><span style="color:#c0392b;font-weight:600;">
+                Atenção: o repasse deste pagamento já está marcado como pago — ao estornar, isso também será desfeito.
+                Se o valor já foi entregue em mãos ao profissional, será preciso acertar a diferença com ele diretamente.
+            </span>
+        {% endif %}
+    </p>
+
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="voltar_url" value="{{ voltar_url }}">
+        {% for campo in form %}
+            <div class="campo-bloco">
+                {{ campo.label_tag }}
+                {{ campo }}
+                {% if campo.help_text %}<div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">{{ campo.help_text }}</div>{% endif %}
+                {% for erro in campo.errors %}
+                    <div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+
+        <button type="submit" class="botao" style="background:#c0392b;">Sim, estornar</button>
+        <a href="{{ voltar_url }}" style="margin-left:12px;">Voltar</a>
+    </form>
+{% endblock %}

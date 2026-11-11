@@ -1,0 +1,1050 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br" data-tema="{% if user.is_authenticated %}{{ user.tema }}{% else %}claro{% endif %}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="{% static 'accounts/img/logo_smedim.svg' %}">
+    <title>{% block titulo %}Sistema de Gestão — Clínica SMEDIM{% endblock %}</title>
+    <style>
+        /* Paleta extraída da logo real da clínica (verde-teal + verde-limão). */
+        :root {
+            --marca: #44b285;
+            --marca-escura: #2f7d5e;
+            --marca-clara: #4dc996;
+            --marca-lima: #83de83;
+
+            --bg: #f4f6f9;
+            --bg-cartao: #ffffff;
+            --texto: #1c1c1c;
+            --texto-suave: #555555;
+            --borda: #dfe3ea;
+        }
+        html[data-tema="escuro"] {
+            --bg: #121a17;
+            --bg-cartao: #1b2622;
+            --texto: #eef3f0;
+            --texto-suave: #a9b8b2;
+            --borda: #2c3a35;
+            --marca: #4dc996;
+            --marca-escura: #3aa87d;
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--texto);
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+        .topo {
+            background: var(--bg-cartao);
+            border-bottom: 3px solid var(--marca);
+            color: var(--texto);
+            padding: 14px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .topo-marca { display: flex; align-items: center; gap: 10px; }
+        .topo-marca img { height: 64px; display: block; }
+        .topo a { color: var(--marca-escura); text-decoration: none; font-weight: 600; }
+        .topo-usuario { display: flex; align-items: center; gap: 14px; font-size: 14px; color: var(--texto-suave); }
+
+        .botao-tema {
+            background: none;
+            border: 1px solid var(--borda);
+            color: var(--texto);
+            border-radius: 20px;
+            padding: 5px 12px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .botao-tema:hover { border-color: var(--marca); }
+
+        .faixa-campanha {
+            padding: 8px 24px;
+            font-size: 13px;
+            text-align: center;
+        }
+
+        .layout {
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .barra-lateral {
+            width: 230px;
+            flex-shrink: 0;
+            background: var(--bg-cartao);
+            border-right: 1px solid var(--borda);
+            min-height: calc(100vh - 64px);
+            padding: 20px 0;
+        }
+        .barra-lateral .link-menu {
+            display: block;
+            padding: 10px 22px;
+            color: var(--texto);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .barra-lateral .link-menu:hover,
+        .barra-lateral .link-menu.ativo {
+            background: var(--bg);
+            color: var(--marca-escura);
+        }
+        .menu-suspenso summary {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 22px;
+            color: var(--texto);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            list-style: none;
+        }
+        .menu-suspenso summary::-webkit-details-marker { display: none; }
+        .menu-suspenso summary::after {
+            content: "▸";
+            font-size: 11px;
+            color: var(--texto-suave);
+            transition: transform 0.15s ease;
+        }
+        .menu-suspenso[open] summary::after { transform: rotate(90deg); }
+        .menu-suspenso summary:hover { background: var(--bg); color: var(--marca-escura); }
+        .submenu { display: flex; flex-direction: column; padding: 4px 0 8px; }
+        .submenu a {
+            padding: 8px 22px 8px 38px;
+            color: var(--texto-suave);
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .submenu a:hover, .submenu a.ativo {
+            background: var(--bg);
+            color: var(--marca-escura);
+        }
+        .badge-menu-nao-lidas {
+            display: inline-block;
+            background: #c0392b;
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 700;
+            border-radius: 10px;
+            padding: 1px 7px;
+            margin-left: 4px;
+        }
+
+        /* Favoritos fixados no topo do menu lateral — cada usuário escolhe os dele
+           (Usuario.paginas_favoritas); o botão de estrela aparece ao lado de cada
+           item favoritável (ver accounts.permissoes.PAGINAS_FAVORITAVEIS). */
+        .grupo-favoritos { padding: 10px 0 10px; border-bottom: 1px solid var(--borda); margin-bottom: 4px; }
+        .titulo-favoritos {
+            padding: 0 22px 6px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+            color: var(--texto-suave); font-weight: 700;
+        }
+        .link-favorito {
+            display: block; padding: 7px 22px; color: var(--texto); text-decoration: none;
+            font-size: 14px; font-weight: 600;
+        }
+        .link-favorito:hover, .link-favorito.ativo { background: var(--bg); color: var(--marca-escura); }
+
+        .linha-menu-favoritavel { display: flex; align-items: stretch; }
+        .linha-menu-favoritavel > a { flex: 1; min-width: 0; }
+        .form-favorito { margin: 0; display: flex; align-items: center; }
+        .botao-favorito {
+            background: none; border: none; cursor: pointer; padding: 0 18px 0 4px;
+            font-size: 13.5px; color: var(--borda); line-height: 1;
+        }
+        .botao-favorito:hover { color: #d99a06; }
+        .botao-favorito.favoritado { color: #d99a06; }
+
+        /* Busca rápida de paciente, no cabeçalho — só aparece pra quem pode cadastrar
+           paciente (mesma permissão que já libera "Pacientes" no menu Cadastros). */
+        .busca-topo { flex: 1; max-width: 320px; margin: 0 24px; }
+        .busca-topo form {
+            display: flex; align-items: center; gap: 7px; border: 1px solid var(--borda);
+            border-radius: 8px; padding: 6px 10px; background: var(--bg);
+        }
+        .busca-topo input {
+            border: none; outline: none; background: none; font-size: 13px;
+            color: var(--texto); width: 100%; font-family: inherit;
+        }
+        .busca-topo input::placeholder { color: var(--texto-suave); }
+
+        .avatar-usuario {
+            width: 27px; height: 27px; border-radius: 50%; background: var(--marca-clara);
+            color: #ffffff; display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 700; flex-shrink: 0; overflow: hidden;
+        }
+        .avatar-usuario img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        a.link-avatar { padding: 0; border-radius: 50%; }
+        a.link-avatar:hover { background: none; opacity: 0.85; }
+        html[data-tema="escuro"] a.link-avatar { color: inherit; }
+
+        .area-conteudo { flex: 1; min-width: 0; }
+
+        .conteudo {
+            max-width: 720px;
+            margin: 40px auto;
+            background: var(--bg-cartao);
+            border: 1px solid var(--borda);
+            border-radius: 8px;
+        }
+        .conteudo.larga {
+            max-width: none;
+            width: auto;
+            margin: 24px;
+            padding: 32px;
+        }
+        .campo {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--borda);
+            border-radius: 6px;
+            font-size: 15px;
+            margin-top: 4px;
+            background: var(--bg-cartao);
+            color: var(--texto);
+        }
+        /* No modo escuro, o ícone/calendário nativo do campo de data (type="date")
+           vinha preto sobre fundo escuro, quase invisível — "color-scheme" avisa o
+           navegador pra desenhar os controles nativos (ícone, popup do calendário)
+           em versão clara. (Removido o filtro extra que estava invertendo o ícone
+           de volta pra preto por cima do color-scheme.) */
+        html[data-tema="escuro"] input[type="date"], html[data-tema="escuro"] input[type="month"] { color-scheme: dark; }
+        /* Mesmo problema na lista aberta de um <select>: o navegador desenhava as opções em fundo branco
+           com o texto claro herdado do tema — ilegível (ex.: seletor de prioridade da Agenda do dia). */
+        html[data-tema="escuro"] select { color-scheme: dark; }
+        html[data-tema="escuro"] option { background: var(--bg-cartao); color: var(--texto); }
+        label { font-weight: 600; font-size: 14px; }
+        .campo-bloco { margin-bottom: 16px; }
+        .botao {
+            background: var(--marca);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 15px;
+            cursor: pointer;
+        }
+        .botao:hover { background: var(--marca-escura); }
+        .botao:disabled { background: var(--borda); color: var(--texto-suave); cursor: not-allowed; }
+        .botao:disabled:hover { background: var(--borda); }
+        .mensagens { margin-bottom: 16px; }
+        .mensagem { padding: 10px 14px; border-radius: 6px; margin-bottom: 8px; font-size: 14px; }
+        .mensagem.error { background: #fdeaea; color: #a12525; border: 1px solid #f3c1c1; }
+        .mensagem.success { background: #e8f7ee; color: #1c7c40; border: 1px solid #bfe6cf; }
+        .mensagem.info { background: #eaf1fb; color: #1f3864; border: 1px solid #c6d7f2; }
+        .mensagem.warning { background: #fdf3e0; color: #8a5a00; border: 1px solid #f3d9a1; }
+        html[data-tema="escuro"] .mensagem.error { background: #3a2323; color: #f3a9a9; border-color: #5a2f2f; }
+        html[data-tema="escuro"] .mensagem.success { background: #1e3327; color: #a9e6bf; border-color: #2f5a3f; }
+        html[data-tema="escuro"] .mensagem.info { background: #1f2b3a; color: #a9c6f3; border-color: #2f4a5a; }
+        html[data-tema="escuro"] .mensagem.warning { background: #362a12; color: #f0cd8a; border-color: #55411a; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--borda); font-size: 14px; }
+        th { color: var(--texto-suave); font-weight: 600; }
+
+        /* Qualquer link "solto" do sistema (Editar, Excluir, Baixar planilha,
+           Ver, etc.) — no modo escuro o azul/roxo padrão do navegador ficava
+           com contraste ruim em cima do fundo quase preto, então aqui fica
+           sempre branco e ganha um "chip" arredondado ao passar o mouse,
+           deixando claro que é clicável sem virar um botão grande demais.
+           Links com sua própria classe (menu lateral, topo, botões grandes,
+           cartões, células "Vago" da Central de Atendimento etc.) continuam
+           com a cor deles, porque uma classe sempre tem prioridade sobre
+           este seletor genérico "a". */
+        a {
+            color: var(--marca-escura);
+            text-decoration: none;
+            font-weight: 700;
+            padding: 3px 7px;
+            border-radius: 6px;
+            transition: background 0.12s ease;
+        }
+        a:hover { background: var(--bg); text-decoration: underline; }
+        html[data-tema="escuro"] a { color: #ffffff; }
+        html[data-tema="escuro"] a:hover { background: #26332d; }
+        .campo-senha-wrapper { position: relative; }
+        .campo-senha-wrapper .campo { padding-right: 70px; }
+        .botao-mostrar-senha {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--marca-escura);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 4px 6px;
+        }
+        .botao-mostrar-senha:hover { text-decoration: underline; }
+
+        /* Marca d'água — fica fixa no canto da tela, atrás de todo o conteúdo,
+           em TODAS as páginas (por isso vive aqui no base.html e não em cada
+           template). z-index negativo garante que ela some atrás de qualquer
+           cartão/barra opaco que passar por cima, aparecendo só no fundo. */
+        .marca-dagua-global {
+            position: fixed;
+            right: 0;
+            bottom: 0;
+            width: 260px;
+            z-index: -1;
+            opacity: 0.12;
+            pointer-events: none;
+        }
+        html[data-tema="escuro"] .marca-dagua-global { opacity: 0.18; }
+
+        /* ===== Relatórios financeiros (fechamento diário/mensal, relatório detalhado etc.) =====
+           Na TELA, a "folha" do relatório acompanha o modo claro/escuro do app, através das
+           variáveis --relatorio-* abaixo (redefinidas em html[data-tema="escuro"], logo depois
+           de :root). Só na IMPRESSÃO de verdade (@media print, no fim deste bloco) essas mesmas
+           variáveis voltam pro claro à força — papel impresso é sempre branco, independente do
+           tema que estava na tela quando a pessoa clicou em "Imprimir". */
+        :root {
+            --relatorio-bg: #fefefe;
+            --relatorio-texto: #1c1c1c;
+            --relatorio-texto-forte: #33403b;
+            --relatorio-texto-suave: #8a9691;
+            --relatorio-borda: #dfe6e2;
+            --relatorio-borda-forte: #b8c4bf;
+            --relatorio-destaque-bg: #eef4f1;
+            --relatorio-zebra: #f8faf9;
+            --relatorio-erro: #b0392b;
+            --relatorio-erro-suave: #b5807a;
+        }
+        html[data-tema="escuro"] {
+            --relatorio-bg: #1b2622;
+            --relatorio-texto: #eef3f0;
+            --relatorio-texto-forte: #cfe0d8;
+            --relatorio-texto-suave: #93a8a0;
+            --relatorio-borda: #2f3f39;
+            --relatorio-borda-forte: #435650;
+            --relatorio-destaque-bg: #16251f;
+            --relatorio-zebra: #202b27;
+            --relatorio-erro: #e0665a;
+            --relatorio-erro-suave: #a9645b;
+        }
+
+        .fonte-num { font-variant-numeric: tabular-nums; }
+        .relatorio-pagina { background: var(--relatorio-bg); color: var(--relatorio-texto); border: 1px solid var(--borda); border-radius: 4px; padding: 32px 36px; }
+        .relatorio-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; border-bottom: 2px solid var(--marca); padding-bottom: 16px; margin-bottom: 22px; }
+        .relatorio-marca { display: flex; align-items: center; gap: 10px; }
+        .relatorio-selo { width: 32px; height: 32px; border-radius: 50%; background: var(--marca-escura); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; flex-shrink: 0; }
+        .relatorio-nome-clinica { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--relatorio-texto-forte); font-weight: 700; }
+        .relatorio-subtitulo-marca { font-size: 11px; color: var(--relatorio-texto-suave); margin-top: 1px; }
+        .relatorio-titulo { text-align: right; }
+        .relatorio-titulo h2 { font-size: 21px; margin: 0 0 3px; font-weight: 600; color: var(--relatorio-texto); }
+        .relatorio-titulo .relatorio-periodo { font-size: 13.5px; color: var(--relatorio-texto-forte); font-weight: 600; }
+        .relatorio-titulo .relatorio-gerado { font-size: 11px; color: var(--relatorio-texto-suave); margin-top: 5px; }
+        .relatorio-nav { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; font-size: 13px; }
+        .relatorio-nav a { padding: 4px 10px; border: 1px solid var(--borda); border-radius: 6px; }
+
+        .secao { margin-bottom: 22px; }
+        .secao-titulo { font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--marca-escura); font-weight: 700; display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid var(--relatorio-borda); padding-bottom: 6px; margin-bottom: 10px; }
+        .secao-titulo .legenda { font-size: 10.5px; letter-spacing: 0; text-transform: none; color: var(--relatorio-texto-suave); font-weight: 400; }
+
+        .linha-item { display: flex; justify-content: space-between; align-items: baseline; padding: 5px 0; font-size: 14px; border-bottom: 1px dotted var(--relatorio-borda); color: var(--relatorio-texto); }
+        .linha-item:last-child { border-bottom: none; }
+        .linha-item .rotulo { color: var(--relatorio-texto-forte); }
+        .linha-item .qtd { color: var(--relatorio-texto-suave); font-size: 12.5px; margin-left: 8px; }
+        .linha-item .valor { font-weight: 600; }
+        .linha-total { display: flex; justify-content: space-between; font-size: 14px; padding-top: 8px; margin-top: 4px; border-top: 1.5px solid var(--relatorio-borda-forte); font-weight: 700; color: var(--relatorio-texto); }
+
+        .grupo-procedimento { margin-bottom: 12px; }
+        .grupo-procedimento:last-of-type { margin-bottom: 0; }
+        .grupo-nome { display: flex; justify-content: space-between; align-items: baseline; font-size: 13.5px; font-weight: 700; color: var(--relatorio-texto-forte); padding-bottom: 3px; margin-bottom: 2px; border-bottom: 1px solid var(--relatorio-borda-forte); }
+        .grupo-nome .qtd { font-weight: 400; color: var(--relatorio-texto-suave); font-size: 11.5px; }
+        .linha-item.sub { padding: 4px 0 4px 14px; font-size: 13px; }
+        .linha-item.sub .rotulo { color: var(--relatorio-texto-forte); }
+
+        table.tabela-resumo { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+        table.tabela-resumo th { text-align: right; font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--relatorio-texto-suave); font-weight: 600; padding: 0 0 7px; border-bottom: 1px solid var(--relatorio-borda-forte); }
+        table.tabela-resumo th:first-child, table.tabela-resumo td:first-child { text-align: left; }
+        table.tabela-resumo td { padding: 8px 0; border-bottom: 1px dotted var(--relatorio-borda); text-align: right; color: var(--relatorio-texto); }
+        table.tabela-resumo tr:last-child td { border-bottom: none; }
+        table.tabela-resumo td:first-child { font-weight: 600; }
+        table.tabela-resumo .selo-dono { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.04em; background: var(--relatorio-destaque-bg); color: var(--marca-escura); border-radius: 3px; padding: 1px 5px; margin-left: 6px; font-weight: 700; }
+        table.tabela-resumo tr.linha-total-tabela td { border-top: 1.5px solid var(--relatorio-borda-forte); font-weight: 700; padding-top: 9px; }
+        .tabela-scroll { overflow-x: auto; }
+
+        .caixa-liquido { background: var(--relatorio-destaque-bg); border-radius: 6px; padding: 14px 16px; margin-top: 6px; }
+        .caixa-liquido .linha-item { border-bottom: 1px dotted var(--relatorio-borda-forte); }
+        .caixa-liquido .linha-total { border-top: 1.5px solid var(--marca-escura); color: var(--marca-escura); font-size: 15.5px; }
+
+        .caixa-proprietario { border: 1.5px solid var(--marca); border-radius: 6px; padding: 14px 16px 15px; margin-top: 22px; }
+        .caixa-proprietario .titulo-dono { font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--marca-escura); font-weight: 700; margin-bottom: 9px; }
+        .caixa-proprietario .linha-item { font-size: 13.5px; }
+        .caixa-proprietario .linha-total { color: var(--marca-escura); font-size: 16px; }
+
+        .nota-estorno { font-size: 11.5px; color: var(--relatorio-texto-suave); margin: -4px 0 10px; }
+        table.tabela-estorno { width: 100%; border-collapse: collapse; font-size: 13px; }
+        table.tabela-estorno th { text-align: left; font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--relatorio-texto-suave); font-weight: 600; padding: 0 10px 6px 0; border-bottom: 1px solid var(--relatorio-borda-forte); }
+        table.tabela-estorno td { padding: 7px 10px 7px 0; border-bottom: 1px dotted var(--relatorio-borda); vertical-align: top; color: var(--relatorio-texto); }
+        table.tabela-estorno td.valor-estorno { color: var(--relatorio-erro); font-weight: 700; white-space: nowrap; }
+        table.tabela-estorno td.motivo { color: var(--relatorio-texto-suave); font-size: 12.5px; }
+
+        .rodape-relatorio { margin-top: 26px; padding-top: 12px; border-top: 1px solid var(--relatorio-borda); font-size: 10.5px; color: var(--relatorio-texto-suave); display: flex; justify-content: space-between; }
+
+        .barra-filtro { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--relatorio-texto-suave); margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px dashed var(--relatorio-borda); align-items: center; }
+        .barra-filtro strong { color: var(--relatorio-texto-forte); }
+        .barra-filtro select { font-size: 12px; padding: 3px 6px; }
+
+        table.tabela-detalhe { width: 100%; border-collapse: collapse; font-size: 12.8px; min-width: 640px; }
+        table.tabela-detalhe th { text-align: left; font-size: 10.2px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--relatorio-texto-suave); font-weight: 600; padding: 0 8px 7px 0; border-bottom: 1.5px solid var(--relatorio-borda-forte); }
+        table.tabela-detalhe td { padding: 7px 8px 7px 0; border-bottom: 1px solid var(--relatorio-borda); white-space: nowrap; color: var(--relatorio-texto); }
+        table.tabela-detalhe tbody tr:nth-child(even) { background: var(--relatorio-zebra); }
+        table.tabela-detalhe td.paciente { font-weight: 600; white-space: normal; }
+        table.tabela-detalhe td.valor { text-align: right; }
+        table.tabela-detalhe td.forma-convenio { color: var(--relatorio-texto-suave); }
+        .selo-realizado { color: var(--marca-escura); font-size: 11.5px; font-weight: 600; }
+        .selo-estornado-linha { color: var(--relatorio-erro); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+        tr.linha-estornada td { color: var(--relatorio-erro-suave); }
+        tr.linha-estornada td.paciente, tr.linha-estornada td.valor { text-decoration: line-through; text-decoration-color: var(--relatorio-erro); }
+        .rodape-detalhe { display: flex; justify-content: flex-end; gap: 22px; padding-top: 10px; margin-top: 4px; border-top: 1.5px solid var(--relatorio-borda-forte); font-size: 13px; font-weight: 700; color: var(--relatorio-texto); }
+
+        .botao-imprimir { display: inline-flex; align-items: center; gap: 7px; background: var(--marca); color: #fff; border: none; border-radius: 6px; padding: 9px 16px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; margin-top: 16px; }
+        .botao-imprimir:hover { background: var(--marca-escura); }
+
+        /* ===== Atestados e receituários (app "documentos") =====
+           Layout minimalista pedido pelo cliente: bastante espaço em branco, logo
+           pequena no canto, um traço fino na cor da marca, marca d'água própria
+           (maior, centralizada) no lugar da marca d'água global do app — ver
+           .pagina-documento abaixo, que desliga a global. Mesmo princípio dos
+           relatórios financeiros: na tela acompanha claro/escuro (--doc-*
+           redefinida em html[data-tema="escuro"]), mas a IMPRESSÃO de verdade
+           força papel branco (@media print no fim deste bloco), porque papel é
+           sempre branco independente do tema que estava ligado na tela. */
+        :root {
+            --doc-bg: #fffdf9;
+            --doc-texto: #232722;
+            --doc-texto-suave: #7a847d;
+            --doc-borda: #e2e7e2;
+        }
+        html[data-tema="escuro"] {
+            --doc-bg: #1c231f;
+            --doc-texto: #eef1ec;
+            --doc-texto-suave: #97a19a;
+            --doc-borda: #303a34;
+        }
+        .pagina-documento .marca-dagua-global { display: none; }
+        .documento-papel {
+            position: relative;
+            max-width: 720px;
+            margin: 0 auto;
+            background: var(--doc-bg);
+            color: var(--doc-texto);
+            border: 1px solid var(--borda);
+            border-radius: 4px;
+            padding: 64px 68px 48px;
+            font-family: "Segoe UI", -apple-system, Arial, sans-serif;
+            font-weight: 400;
+        }
+        .documento-marca-dagua { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: .06; pointer-events: none; overflow: hidden; }
+        html[data-tema="escuro"] .documento-marca-dagua { opacity: .1; }
+        .documento-marca-dagua img { width: 62%; max-width: 420px; }
+        .documento-conteudo { position: relative; z-index: 1; }
+        /* Receituário/atestado em preto e letras maiores (pedido da clínica, 07/11/2026 —
+           "Proposta A"): nada de texto em cinza/verde no documento, só var(--doc-texto). */
+        .documento-cabecalho { display: flex; align-items: center; gap: 18px; margin-bottom: 6px; }
+        .documento-cabecalho img { height: 72px; }
+        .documento-clinica-nome { font-weight: 700; font-size: 24px; letter-spacing: .01em; color: var(--doc-texto); }
+        .documento-clinica-dados { font-size: 14px; color: var(--doc-texto); margin-top: 2px; }
+        .documento-regua { height: 1.5px; background: var(--doc-texto); margin: 18px 0 26px; }
+        .documento-titulo { font-size: 23px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; text-align: center; color: var(--doc-texto); margin-bottom: 24px; }
+        .documento-paciente-linha { font-size: 22px; color: var(--doc-texto); margin-bottom: 30px; }
+        .documento-paciente-linha strong { color: var(--doc-texto); font-weight: 700; }
+        .documento-corpo { font-size: 23px; line-height: 2; text-align: justify; color: var(--doc-texto); }
+        .documento-corpo strong { font-weight: 700; }
+        .documento-itens { margin: 4px 0 8px; }
+        .documento-item { margin-bottom: 26px; font-size: 24px; line-height: 1.5; }
+        .documento-item .num { font-weight: 700; color: var(--doc-texto); margin-right: 12px; }
+        .documento-item .nome { font-weight: 700; }
+        .documento-item .posologia { font-size: 21px; color: var(--doc-texto); margin: 4px 0 0 40px; }
+        .documento-observacoes { margin-top: 10px; font-size: 21px; color: var(--doc-texto); border-top: 1px dashed var(--doc-texto-suave); padding-top: 16px; }
+        .documento-rodape { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 76px; font-size: 16px; color: var(--doc-texto); }
+        .documento-assinatura { text-align: center; }
+        .documento-assinatura .espaco-carimbo { height: 54px; }
+        .documento-assinatura .linha { width: 240px; border-top: 1px solid var(--doc-texto); margin-bottom: 6px; }
+        .documento-assinatura .nome-profissional { color: var(--doc-texto); font-weight: 700; font-size: 18px; }
+
+        @media print {
+            :root, html[data-tema="escuro"] {
+                --relatorio-bg: #fefefe;
+                --relatorio-texto: #1c1c1c;
+                --relatorio-texto-forte: #33403b;
+                --relatorio-texto-suave: #8a9691;
+                --relatorio-borda: #dfe6e2;
+                --relatorio-borda-forte: #b8c4bf;
+                --relatorio-destaque-bg: #eef4f1;
+                --relatorio-zebra: #f8faf9;
+                --relatorio-erro: #b0392b;
+                --relatorio-erro-suave: #b5807a;
+                --doc-bg: #ffffff;
+                --doc-texto: #000000;
+                --doc-texto-suave: #5b6a63;
+                --doc-borda: #e2e7e2;
+            }
+            @page { size: A4; margin: 16mm 18mm; }
+            .topo, .barra-lateral, .faixa-campanha, .no-imprimir, .mensagens { display: none !important; }
+            body { background: #fff; }
+            .layout { display: block; }
+            .area-conteudo { width: 100%; }
+            .conteudo, .conteudo.larga { max-width: none; margin: 0; padding: 0; border: none; }
+            .relatorio-pagina { border: none; padding: 0; }
+            .documento-papel { border: none; padding: 0; max-width: none; }
+            /* Data e assinatura no pé da folha (pedido da clínica, 07/11/2026): o papel ocupa a
+               altura útil do A4 (297mm − 2×16mm de margem = 265mm, com folga) e o rodapé é
+               empurrado para baixo. É min-height, então receita longa cresce para a 2ª folha
+               normalmente e o rodapé fica no fim dela. */
+            .documento-papel { min-height: 260mm; display: flex; flex-direction: column; }
+            .documento-conteudo { flex: 1; display: flex; flex-direction: column; }
+            .documento-rodape { margin-top: auto; padding-top: 48px; }
+        }
+    </style>
+    <script>
+        // Dinheiro no formato 150.000,00 (pedido da clínica, 06/11/2026) — mesma regra de
+        // accounts/moeda.py (ler_moeda/formatar_moeda). Fica no <head> porque os scripts de cada
+        // tela rodam antes do fim da página. Campos com a classe "campo-moeda" são formatados
+        // ao sair do campo; o servidor aceita tanto "150.000,00" quanto "150000,00".
+        window.Moeda = {
+            ler: function (texto) {
+                var s = String(texto == null ? "" : texto).replace(/R\$/g, "").replace(/\s/g, "");
+                if (!s) { return null; }
+                if (s.indexOf(",") >= 0) {
+                    s = s.replace(/\./g, "").replace(",", ".");
+                } else {
+                    var partes = s.split(".");
+                    if (!(partes.length === 2 && partes[1].length >= 1 && partes[1].length <= 2)) {
+                        s = s.replace(/\./g, "");
+                    }
+                }
+                var n = parseFloat(s);
+                return isNaN(n) ? null : n;
+            },
+            formatar: function (n) {
+                if (n === null || n === undefined || isNaN(n)) { return ""; }
+                var negativo = n < 0;
+                var partes = Math.abs(n).toFixed(2).split(".");
+                var inteiro = partes[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+                return (negativo ? "-" : "") + inteiro + "," + partes[1];
+            },
+            emReais: function (n) { return "R$ " + window.Moeda.formatar(n); }
+        };
+        document.addEventListener("focusout", function (evento) {
+            var campo = evento.target;
+            if (!campo || !campo.classList || !campo.classList.contains("campo-moeda") || !campo.value) { return; }
+            var n = window.Moeda.ler(campo.value);
+            if (n !== null) { campo.value = window.Moeda.formatar(n); }
+        });
+    </script>
+</head>
+<body class="{% block corpo_classe %}{% endblock %}">
+    <img class="marca-dagua-global" src="{% static 'accounts/img/marca_dagua.svg' %}" alt="">
+    <div class="topo">
+        <div class="topo-marca">
+            <a href="{% url 'home' %}" title="Voltar para o início" style="display:block;">
+                <img src="{% static 'accounts/img/logo_smedim.svg' %}" alt="Clínica SMEDIM">
+            </a>
+        </div>
+        {% if user.is_authenticated %}
+            {% if perms.accounts.paciente_cadastrar %}
+                <div class="busca-topo">
+                    <form method="get" action="{% url 'cadastros:paciente_lista' %}">
+                        <span aria-hidden="true">🔍</span>
+                        <input type="search" name="q" placeholder="Buscar paciente (nome ou CPF)">
+                    </form>
+                </div>
+            {% endif %}
+            <div class="topo-usuario">
+                <a href="{% url 'meu_perfil' %}" class="link-avatar" title="Meu perfil">
+                    <span class="avatar-usuario">
+                        {% if user.foto %}
+                            <img src="{{ user.foto.url }}" alt="">
+                        {% else %}
+                            {{ user.get_full_name|default:user.username|first|upper }}
+                        {% endif %}
+                    </span>
+                </a>
+                <span>{{ user.get_full_name|default:user.username }}</span>
+                <button type="button" id="botao-tema" class="botao-tema" data-url-alternar="{% url 'alternar_tema' %}">
+                    {% if user.tema == "escuro" %}☀️ Modo claro{% else %}🌙 Modo escuro{% endif %}
+                </button>
+                <a href="{% url 'logout' %}">Sair</a>
+            </div>
+        {% endif %}
+    </div>
+
+    {% if tema_mes %}
+        <div class="faixa-campanha" style="background: {{ tema_mes.cor }}; color: {{ tema_mes.cor_texto }};">
+            <strong>{{ tema_mes.nome }}</strong> — {{ tema_mes.descricao }}
+        </div>
+    {% endif %}
+
+    <div class="layout">
+        {% if user.is_authenticated %}
+            <aside class="barra-lateral">
+                {% if favoritos_resolvidos %}
+                    <div class="grupo-favoritos">
+                        <div class="titulo-favoritos">⭐ Favoritos</div>
+                        {% for favorito in favoritos_resolvidos %}
+                            <a href="{{ favorito.url }}" class="link-favorito {% if favorito.ativo %}ativo{% endif %}">{{ favorito.label }}</a>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                <a href="{% url 'home' %}" class="link-menu">🏠 Início</a>
+
+                {% if perms.accounts.paciente_cadastrar or perms.accounts.profissional_gerenciar or perms.accounts.procedimento_gerenciar or perms.accounts.convenio_gerenciar %}
+                    <details class="menu-suspenso" {% if request.resolver_match.app_name == "cadastros" %}open{% endif %}>
+                        <summary>CADASTROS</summary>
+                        <div class="submenu">
+                            {% if perms.accounts.paciente_cadastrar %}
+                                <div class="linha-menu-favoritavel">
+                                    <a href="{% url 'cadastros:paciente_lista' %}" class="{% if request.resolver_match.url_name == 'paciente_lista' %}ativo{% endif %}">Pacientes</a>
+                                    <form method="post" action="{% url 'alternar_favorito' %}" class="form-favorito">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="pagina" value="pacientes">
+                                        <button type="submit" class="botao-favorito {% if 'pacientes' in user.paginas_favoritas %}favoritado{% endif %}" title="{% if 'pacientes' in user.paginas_favoritas %}Remover dos favoritos{% else %}Fixar em Favoritos{% endif %}">★</button>
+                                    </form>
+                                </div>
+                            {% endif %}
+                            {% if perms.accounts.profissional_gerenciar %}
+                                <a href="{% url 'cadastros:profissional_lista' %}" class="{% if request.resolver_match.url_name == 'profissional_lista' %}ativo{% endif %}">Profissionais</a>
+                            {% endif %}
+                            {% if perms.accounts.procedimento_gerenciar %}
+                                <a href="{% url 'cadastros:procedimento_lista' %}" class="{% if request.resolver_match.url_name == 'procedimento_lista' %}ativo{% endif %}">Procedimentos</a>
+                                <a href="{% url 'cadastros:pacote_lista' %}" class="{% if request.resolver_match.url_name == 'pacote_lista' %}ativo{% endif %}">Pacotes / combos</a>
+                            {% endif %}
+                            {% if perms.accounts.convenio_gerenciar %}
+                                <a href="{% url 'cadastros:convenio_lista' %}" class="{% if request.resolver_match.url_name == 'convenio_lista' %}ativo{% endif %}">Convênios</a>
+                            {% endif %}
+                            {% if perms.accounts.sala_gerenciar %}
+                                <a href="{% url 'cadastros:sala_lista' %}" class="{% if request.resolver_match.url_name == 'sala_lista' %}ativo{% endif %}">Salas</a>
+                            {% endif %}
+                            {% if perms.accounts.guiche_gerenciar %}
+                                <a href="{% url 'cadastros:guiche_lista' %}" class="{% if request.resolver_match.url_name == 'guiche_lista' %}ativo{% endif %}">Guichês</a>
+                            {% endif %}
+                            {% if perms.accounts.limite_diario_gerenciar %}
+                                <a href="{% url 'cadastros:limite_diario_lista' %}" class="{% if request.resolver_match.url_name == 'limite_diario_lista' %}ativo{% endif %}">Limites diários (procedimento)</a>
+                            {% endif %}
+                        </div>
+                    </details>
+                {% endif %}
+
+                {% if perms.accounts.agenda_ver_dia or perms.accounts.agenda_criar or perms.accounts.agenda_editar or perms.accounts.agenda_ver_propria or perms.accounts.central_atendimento_usar or perms.accounts.agenda_cancelar_autorizado or perms.accounts.pacote_paciente_cadastrar or perms.accounts.fila_ver_aguardando or perms.accounts.fila_autorizar_recepcao %}
+                    {% comment %}
+                        Checa os url_names específicos da Agenda, não o app inteiro
+                        (request.resolver_match.app_name == "agenda") — a tela de Repasses
+                        semanais (Financeiro) também vive no app "agenda" por baixo dos panos
+                        (agenda/views.py), então checar só o app fazia esse menu abrir sozinho
+                        até quando a página aberta era a de Financeiro.
+                    {% endcomment %}
+                    <details class="menu-suspenso" {% if ","|add:request.resolver_match.url_name|add:"," in ",agenda_dia,central_atendimento,agenda_propria,meu_desempenho,listagem_atendidos,ocupacao_salas,procedimentos_do_profissional,agendamento_novo,agendamento_editar,agendamento_cancelar,agendamento_cancelar_autorizado,agendamento_excluir,agendamento_mudar_status,agendamento_confirmar_pagamento,agendamento_autorizar,autorizacoes,guias_convenio,guia_convenio_editar,painel_chamada,fila_espera,fila_profissionais,guias_pendentes,pacotes_vendidos,pacote_cadastrar_manual," %}open{% endif %}>
+                        <summary>AGENDA</summary>
+                        <div class="submenu">
+                            {% if perms.accounts.agenda_ver_dia or perms.accounts.agenda_criar or perms.accounts.agenda_editar %}
+                                <div class="linha-menu-favoritavel">
+                                    <a href="{% url 'agenda:agenda_dia' %}" class="{% if request.resolver_match.url_name == 'agenda_dia' %}ativo{% endif %}">Agenda do dia</a>
+                                    {% if perms.accounts.agenda_ver_dia %}
+                                        <form method="post" action="{% url 'alternar_favorito' %}" class="form-favorito">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="pagina" value="agenda_dia">
+                                            <button type="submit" class="botao-favorito {% if 'agenda_dia' in user.paginas_favoritas %}favoritado{% endif %}" title="{% if 'agenda_dia' in user.paginas_favoritas %}Remover dos favoritos{% else %}Fixar em Favoritos{% endif %}">★</button>
+                                        </form>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                            {% if perms.accounts.central_atendimento_usar %}
+                                <div class="linha-menu-favoritavel">
+                                    <a href="{% url 'agenda:central_atendimento' %}" class="{% if request.resolver_match.url_name == 'central_atendimento' %}ativo{% endif %}">Central de atendimento</a>
+                                    <form method="post" action="{% url 'alternar_favorito' %}" class="form-favorito">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="pagina" value="central_atendimento">
+                                        <button type="submit" class="botao-favorito {% if 'central_atendimento' in user.paginas_favoritas %}favoritado{% endif %}" title="{% if 'central_atendimento' in user.paginas_favoritas %}Remover dos favoritos{% else %}Fixar em Favoritos{% endif %}">★</button>
+                                    </form>
+                                </div>
+                            {% endif %}
+                            {% if perms.accounts.fila_chamar_senha and not user.profissional_id %}
+                                {% comment %}
+                                    'Chamar senha' é a tela da recepção (senhas do totem, guichê) — não se
+                                    aplica a quem é profissional (tem profissional_id): esse chama pelo nome,
+                                    em 'Minha agenda' (agendamento_chamar), não por aqui. Sem essa exclusão,
+                                    um médico com fila_chamar_senha (perfil padrão, ver seed_perfis.py) via um
+                                    link pra uma tela que nunca vai conseguir usar de verdade (sem guichê/
+                                    especialidades do dia) e ainda esbarrava em 403 ao seguir o aviso "Definir
+                                    agora na Agenda do dia", que exige 'agenda_ver_dia' — permissão que o
+                                    perfil Médico não tem.
+                                {% endcomment %}
+                                <a href="{% url 'fila:painel_chamada' %}" class="{% if request.resolver_match.url_name == 'painel_chamada' %}ativo{% endif %}">Chamar senha</a>
+                            {% endif %}
+                            {% if perms.accounts.fila_ver_aguardando %}
+                                <a href="{% url 'fila:fila_espera' %}" class="{% if request.resolver_match.url_name == 'fila_espera' %}ativo{% endif %}">Fila de espera</a>
+                            {% endif %}
+                            {% if perms.accounts.fila_autorizar_recepcao or perms.accounts.fila_ver_aguardando %}
+                                <a href="{% url 'agenda:fila_profissionais' %}" class="{% if request.resolver_match.url_name == 'fila_profissionais' %}ativo{% endif %}">Fila dos profissionais</a>
+                            {% endif %}
+                            {% if perms.accounts.agenda_ver_propria %}
+                                <div class="linha-menu-favoritavel">
+                                    <a href="{% url 'agenda:agenda_propria' %}" class="{% if request.resolver_match.url_name == 'agenda_propria' %}ativo{% endif %}">Minha agenda</a>
+                                    <form method="post" action="{% url 'alternar_favorito' %}" class="form-favorito">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="pagina" value="agenda_propria">
+                                        <button type="submit" class="botao-favorito {% if 'agenda_propria' in user.paginas_favoritas %}favoritado{% endif %}" title="{% if 'agenda_propria' in user.paginas_favoritas %}Remover dos favoritos{% else %}Fixar em Favoritos{% endif %}">★</button>
+                                    </form>
+                                </div>
+                                <a href="{% url 'agenda:listagem_atendidos' %}" class="{% if request.resolver_match.url_name == 'listagem_atendidos' %}ativo{% endif %}">Listagem de atendidos</a>
+                                <a href="{% url 'agenda:meu_desempenho' %}" class="{% if request.resolver_match.url_name == 'meu_desempenho' %}ativo{% endif %}">Meu desempenho</a>
+                                {# Profissional vê as próprias guias pendentes de autorização/assinatura (2026-10-16). #}
+                                {% if user.profissional_id and not perms.accounts.fila_autorizar_recepcao and not perms.accounts.financeiro_ver_contas_receber %}
+                                    <a href="{% url 'agenda:guias_pendentes' %}" class="{% if request.resolver_match.url_name == 'guias_pendentes' %}ativo{% endif %}">Minhas guias pendentes</a>
+                                {% endif %}
+                            {% endif %}
+                            {% if perms.accounts.agenda_cancelar_autorizado and not perms.accounts.fila_autorizar_recepcao %}
+                                <a href="{% url 'agenda:autorizacoes' %}" class="{% if request.resolver_match.url_name == 'autorizacoes' %}ativo{% endif %}">Autorizações</a>
+                            {% endif %}
+                            {% if perms.accounts.fila_autorizar_recepcao %}
+                                <a href="{% url 'agenda:autorizacoes' %}" class="{% if request.resolver_match.url_name == 'autorizacoes' %}ativo{% endif %}">Autorizações</a>
+                                <a href="{% url 'agenda:guias_convenio' %}" class="{% if request.resolver_match.url_name == 'guias_convenio' or request.resolver_match.url_name == 'guia_convenio_editar' %}ativo{% endif %}">Guias do convênio</a>
+                                <a href="{% url 'agenda:guias_pendentes' %}" class="{% if request.resolver_match.url_name == 'guias_pendentes' %}ativo{% endif %}">Guias pendentes</a>
+                            {% endif %}
+                            {% if perms.accounts.agenda_ver_dia or perms.accounts.agenda_criar or perms.accounts.agenda_editar or perms.accounts.pacote_paciente_cadastrar %}
+                                <a href="{% url 'agenda:pacotes_vendidos' %}" class="{% if request.resolver_match.url_name == 'pacotes_vendidos' %}ativo{% endif %}">Pacotes dos pacientes</a>
+                            {% endif %}
+                            {% if perms.accounts.agenda_ver_dia %}
+                                <a href="{% url 'agenda:ocupacao_salas' %}" class="{% if request.resolver_match.url_name == 'ocupacao_salas' %}ativo{% endif %}">Ocupação de salas</a>
+                            {% endif %}
+                        </div>
+                    </details>
+                {% endif %}
+
+                {% if perms.accounts.financeiro_ver_painel or perms.accounts.financeiro_ver_movimentacoes_avulsas or perms.accounts.financeiro_ver_contas_receber or perms.accounts.financeiro_ver_repasses_semanais or perms.accounts.financeiro_ver_fechamento_diario or perms.accounts.financeiro_ver_fechamento_mensal or perms.accounts.financeiro_ver_relatorio_detalhado or perms.accounts.financeiro_ver_repasse_convenio or perms.accounts.financeiro_ver_producao_convenio or perms.accounts.financeiro_conciliar or perms.accounts.fila_autorizar_financeiro or perms.accounts.financeiro_ver_proprio or perms.accounts.faturamento_lote_visualizar or perms.accounts.faturamento_comparativo_visualizar or perms.accounts.faturamento_lote_lancar or perms.accounts.faturamento_retorno_lancar or user.eh_proprietario or user.profissional_id %}
+                    {% comment %}
+                        "Repasses semanais" mora no app "agenda" por baixo dos panos (agenda/views.py),
+                        por isso a condição de abrir sozinho checa o url_name específico dela, além do
+                        app_name "financeiro" (as telas novas, que já vivem no próprio app) — checar só
+                        o app_name faria esse menu nunca abrir sozinho pra Repasses, e checar só o
+                        url_name faria esse menu nunca abrir sozinho pras telas novas.
+
+                        Cada link abaixo tem sua própria permissão "ver" (uma por página — pedido do
+                        cliente, 2026-07-28): antes, um único "financeiro_ver_completo" liberava 9
+                        páginas de uma vez, sem dar pra escolher uma sem as outras.
+                    {% endcomment %}
+                    <details class="menu-suspenso" {% if request.resolver_match.url_name == 'relatorio_repasses_semanal' or request.resolver_match.app_name == "financeiro" %}open{% endif %}>
+                        <summary>FINANCEIRO</summary>
+                        <div class="submenu">
+                            {% if perms.accounts.financeiro_ver_painel %}
+                                <div class="linha-menu-favoritavel">
+                                    <a href="{% url 'financeiro:painel' %}" class="{% if request.resolver_match.url_name == 'painel' %}ativo{% endif %}">Painel financeiro</a>
+                                    <form method="post" action="{% url 'alternar_favorito' %}" class="form-favorito">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="pagina" value="financeiro_painel">
+                                        <button type="submit" class="botao-favorito {% if 'financeiro_painel' in user.paginas_favoritas %}favoritado{% endif %}" title="{% if 'financeiro_painel' in user.paginas_favoritas %}Remover dos favoritos{% else %}Fixar em Favoritos{% endif %}">★</button>
+                                    </form>
+                                </div>
+                            {% endif %}
+                            {% if perms.accounts.financeiro_ver_movimentacoes_avulsas %}
+                                <a href="{% url 'financeiro:movimentacao_avulsa_lista' %}" class="{% if request.resolver_match.url_name == 'movimentacao_avulsa_lista' %}ativo{% endif %}">Movimentações avulsas (caixa)</a>
+                            {% endif %}
+                            {% if perms.accounts.fila_autorizar_financeiro %}
+                                <a href="{% url 'financeiro:fila_pagamento_lista' %}" class="{% if request.resolver_match.url_name == 'fila_pagamento_lista' %}ativo{% endif %}">Fila de pagamento</a>
+                                <a href="{% url 'financeiro:pagamento_correcao_lista' %}" class="{% if request.resolver_match.url_name == 'pagamento_correcao_lista' or request.resolver_match.url_name == 'pagamento_corrigir' %}ativo{% endif %}">Corrigir pagamento</a>
+                                {% if not perms.accounts.agenda_ver_dia and not perms.accounts.agenda_criar and not perms.accounts.agenda_editar and not perms.accounts.pacote_paciente_cadastrar %}
+                                    <a href="{% url 'agenda:pacotes_vendidos' %}" class="{% if request.resolver_match.url_name == 'pacotes_vendidos' %}ativo{% endif %}">Pacotes dos pacientes</a>
+                                {% endif %}
+                            {% endif %}
+                            {% if perms.accounts.financeiro_ver_contas_receber %}
+                                <a href="{% url 'financeiro:contas_receber_lista' %}" class="{% if request.resolver_match.url_name == 'contas_receber_lista' %}ativo{% endif %}">Contas a receber (convênio)</a>
+                                <a href="{% url 'agenda:guias_pendentes' %}">Guias de sessão pendentes</a>
+                                {% if not perms.accounts.fila_autorizar_recepcao %}
+                                    <a href="{% url 'agenda:autorizacoes' %}">Autorizações</a>
+                                    <a href="{% url 'agenda:guias_convenio' %}">Guias do convênio</a>
+                                {% endif %}
+                            {% endif %}
+                            {% if perms.accounts.financeiro_ver_repasses_semanais %}
+                                <a href="{% url 'agenda:relatorio_repasses_semanal' %}" class="{% if request.resolver_match.url_name == 'relatorio_repasses_semanal' %}ativo{% endif %}">Repasses semanais (particular)</a>
+                            {% endif %}
+                            {# O proprietário registra os pagamentos de repasse mesmo sem a permissão (2026-10-16). #}
+                            {% if perms.accounts.financeiro_ver_repasses_semanais or user.eh_proprietario %}
+                                <a href="{% url 'financeiro:repasse_pagamento_lista' %}" class="{% if request.resolver_match.url_name == 'repasse_pagamento_lista' %}ativo{% endif %}">Saldos e pagamentos de repasse</a>
+                            {% endif %}
+                            {% if perms.accounts.financeiro_ver_fechamento_diario %}
+                                <a href="{% url 'financeiro:fechamento_diario' %}" class="{% if request.resolver_match.url_name == 'fechamento_diario' %}ativo{% endif %}">Fechamento diário</a>
+                            {% endif %}
+                            {% if perms.accounts.financeiro_ver_fechamento_mensal %}
+                                <a href="{% url 'financeiro:fechamento_mensal' %}" class="{% if request.resolver_match.url_name == 'fechamento_mensal' %}ativo{% endif %}">Fechamento mensal</a>
+                            {% endif %}
+                            {% if perms.accounts.financeiro_ver_relatorio_detalhado %}
+                                <a href="{% url 'financeiro:relatorio_detalhado' %}" class="{% if request.resolver_match.url_name == 'relatorio_detalhado' %}ativo{% endif %}">Relatório detalhado</a>
+                            {% endif %}
+                            {% if perms.accounts.financeiro_ver_repasse_convenio %}
+                                <a href="{% url 'financeiro:repasse_convenio_lista' %}" class="{% if request.resolver_match.url_name == 'repasse_convenio_lista' %}ativo{% endif %}">Repasse aos profissionais (convênio)</a>
+                            {% endif %}
+                            {% if perms.accounts.financeiro_ver_producao_convenio %}
+                                <a href="{% url 'financeiro:producao_por_convenio' %}" class="{% if request.resolver_match.url_name == 'producao_por_convenio' %}ativo{% endif %}">Produção por convênio</a>
+                            {% endif %}
+                            {% if perms.accounts.faturamento_lote_visualizar %}
+                                <a href="{% url 'financeiro:lote_lista' %}" class="{% if request.resolver_match.url_name == 'lote_lista' or request.resolver_match.url_name == 'lote_detalhe' or request.resolver_match.url_name == 'lote_novo' or request.resolver_match.url_name == 'lote_editar' %}ativo{% endif %}">Lotes de faturamento (convênio)</a>
+                            {% endif %}
+                            {% if perms.accounts.faturamento_comparativo_visualizar %}
+                                <a href="{% url 'financeiro:faturamento_comparativo' %}" class="{% if request.resolver_match.url_name == 'faturamento_comparativo' %}ativo{% endif %}">Produção x envio x retorno</a>
+                            {% endif %}
+                            {% if perms.accounts.financeiro_ver_proprio or user.profissional_id %}
+                                <a href="{% url 'financeiro:meu_fechamento_diario' %}" class="{% if request.resolver_match.url_name == 'meu_fechamento_diario' or request.resolver_match.url_name == 'meu_fechamento_mensal' %}ativo{% endif %}">Meu fechamento</a>
+                            {% endif %}
+                        </div>
+                    </details>
+                {% endif %}
+
+                {% if user.profissional_id %}
+                    <a href="{% url 'prontuario:prontuario_lista' %}" class="link-menu {% if request.resolver_match.app_name == 'prontuario' %}ativo{% endif %}">📋 Prontuários</a>
+                {% endif %}
+
+                {% if perms.accounts.mensagem_usar %}
+                    <div class="linha-menu-favoritavel">
+                        <a href="{% url 'mensagens:lista_conversas' %}" class="link-menu {% if request.resolver_match.app_name == 'mensagens' %}ativo{% endif %}">
+                            💬 Mensagens{% if mensagens_nao_lidas_total %} <span class="badge-menu-nao-lidas">{{ mensagens_nao_lidas_total }}</span>{% endif %}
+                        </a>
+                        <form method="post" action="{% url 'alternar_favorito' %}" class="form-favorito">
+                            {% csrf_token %}
+                            <input type="hidden" name="pagina" value="mensagens">
+                            <button type="submit" class="botao-favorito {% if 'mensagens' in user.paginas_favoritas %}favoritado{% endif %}" title="{% if 'mensagens' in user.paginas_favoritas %}Remover dos favoritos{% else %}Fixar em Favoritos{% endif %}">★</button>
+                        </form>
+                    </div>
+                {% endif %}
+
+                {% if perms.accounts.usuario_gerenciar or request.user.is_superuser or perms.accounts.log_auditoria_ver %}
+                    <details class="menu-suspenso" {% if "/usuarios/" in request.path or "/perfis/" in request.path or "/log-auditoria/" in request.path %}open{% endif %}>
+                        <summary>ADMINISTRAÇÃO</summary>
+                        <div class="submenu">
+                            {% if perms.accounts.usuario_gerenciar %}
+                                <a href="{% url 'usuario_lista' %}" class="{% if '/usuarios/' in request.path %}ativo{% endif %}">Usuários</a>
+                            {% endif %}
+                            {% if request.user.is_superuser %}
+                                <a href="{% url 'perfil_lista' %}" class="{% if '/perfis/' in request.path %}ativo{% endif %}">Perfis</a>
+                            {% endif %}
+                            {% if perms.accounts.log_auditoria_ver %}
+                                <a href="{% url 'log_auditoria_lista' %}" class="{% if '/log-auditoria/' in request.path %}ativo{% endif %}">Log de auditoria</a>
+                            {% endif %}
+                        </div>
+                    </details>
+                {% endif %}
+            </aside>
+        {% endif %}
+
+        <div class="area-conteudo">
+            <div class="conteudo {% block classe_extra %}{% endblock %}">
+                {% if messages %}
+                    <div class="mensagens">
+                        {% for message in messages %}
+                            <div class="mensagem {{ message.tags }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                {% block conteudo %}{% endblock %}
+            </div>
+        </div>
+    </div>
+    <script>
+        function alternarSenha(idCampo, botao) {
+            var campo = document.getElementById(idCampo);
+            if (campo.type === "password") {
+                campo.type = "text";
+                botao.textContent = "Ocultar";
+            } else {
+                campo.type = "password";
+                botao.textContent = "Mostrar";
+            }
+        }
+
+        // Troca de tema (claro/escuro) sem recarregar a página — assim não
+        // derruba formulários que a pessoa esteja preenchendo (ex: a grade
+        // de Horários de atendimento). Faz a troca visual na hora e salva a
+        // preferência em segundo plano via fetch().
+        (function () {
+            var botao = document.getElementById("botao-tema");
+            if (!botao) { return; }
+
+            function pegarCookie(nome) {
+                var match = document.cookie.match("(^|;)\\s*" + nome + "\\s*=\\s*([^;]+)");
+                return match ? decodeURIComponent(match[2]) : null;
+            }
+
+            botao.addEventListener("click", function () {
+                var html = document.documentElement;
+                var temaAtual = html.getAttribute("data-tema");
+                var novoTema = temaAtual === "escuro" ? "claro" : "escuro";
+
+                html.setAttribute("data-tema", novoTema);
+                botao.textContent = novoTema === "escuro" ? "☀️ Modo claro" : "🌙 Modo escuro";
+
+                fetch(botao.dataset.urlAlternar, {
+                    method: "POST",
+                    headers: {
+                        "X-CSRFToken": pegarCookie("csrftoken"),
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                }).catch(function () {
+                    /* silencioso — na pior das hipóteses, a preferência não fica salva
+                       pro próximo login, mas a troca visual desta sessão já aconteceu. */
+                });
+            });
+        })();
+
+        // Busca de profissional (pedido da clínica, 23/10/2026): todo <select name="profissional">
+        // do sistema ganha por cima uma caixa de texto que filtra a lista por qualquer trecho do
+        // nome, sem acento/maiúscula — a mesma da Agenda do dia. O <select> continua sendo o campo
+        // enviado; escolher dispara "change" nele (o que já submetia filtros com onchange ou
+        // recarregava procedimentos no agendamento continua funcionando). Sem JavaScript, o
+        // <select> segue visível. data-sem-busca no <select> desliga.
+        (function () {
+            function normalizar(texto) {
+                return (texto || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+            }
+
+            function melhorar(select) {
+                if (select.multiple || select.disabled || select.hasAttribute("data-sem-busca")) { return; }
+                if (select.type === "hidden" || select.offsetParent === null) { return; }
+
+                var wrapper = document.createElement("span");
+                wrapper.style.cssText = "position:relative;display:inline-block;vertical-align:middle;min-width:280px;max-width:100%;";
+                var busca = document.createElement("input");
+                busca.type = "text";
+                busca.autocomplete = "off";
+                busca.className = select.className || "campo";
+                busca.style.width = "100%";
+                busca.style.boxSizing = "border-box";
+                var sugestoes = document.createElement("div");
+                sugestoes.style.cssText = "display:none;position:absolute;top:100%;left:0;right:0;z-index:30;" +
+                    "background:var(--bg-cartao,#ffffff);border:1px solid var(--borda,#dfe3ea);border-radius:6px;" +
+                    "max-height:260px;overflow-y:auto;margin-top:2px;text-align:left;";
+                wrapper.appendChild(busca);
+                wrapper.appendChild(sugestoes);
+                select.parentNode.insertBefore(wrapper, select);
+                select.style.display = "none";
+                if (select.id) {
+                    var rotulo = document.querySelector("label[for='" + select.id + "']");
+                    if (rotulo) { busca.id = select.id + "_busca"; rotulo.htmlFor = busca.id; }
+                }
+
+                var opcaoVazia = Array.prototype.find.call(select.options, function (o) { return !o.value; });
+                var textoVazio = opcaoVazia ? opcaoVazia.textContent.trim() : "";
+                var vazioEhOpcao = textoVazio && !/^-+$/.test(textoVazio) && !/digite/i.test(textoVazio);
+                busca.placeholder = (vazioEhOpcao ? textoVazio + " — digite" : "Digite") + " para buscar o profissional...";
+
+                function textoSelecionado() {
+                    var opcao = select.options[select.selectedIndex];
+                    return opcao && opcao.value ? opcao.textContent.trim() : "";
+                }
+                function esconder() {
+                    sugestoes.style.display = "none";
+                    sugestoes.innerHTML = "";
+                }
+                function escolher(valor) {
+                    esconder();
+                    if (select.value !== valor) {
+                        select.value = valor;
+                        busca.value = textoSelecionado();
+                        select.dispatchEvent(new Event("change", { bubbles: true }));
+                    } else {
+                        busca.value = textoSelecionado();
+                    }
+                    busca.setCustomValidity("");
+                }
+                function mostrar() {
+                    var termo = normalizar(busca.value.trim());
+                    sugestoes.innerHTML = "";
+                    var achados = 0;
+                    Array.prototype.forEach.call(select.options, function (opcao) {
+                        var nome = opcao.textContent.trim();
+                        if (!opcao.value) {
+                            // "Todos"/"Geral" só aparece com a busca vazia; "---------" nunca.
+                            if (termo || !vazioEhOpcao) { return; }
+                        } else if (termo && normalizar(nome).indexOf(termo) === -1) {
+                            return;
+                        }
+                        var item = document.createElement("div");
+                        item.textContent = nome;
+                        item.setAttribute("data-valor", opcao.value);
+                        item.style.cssText = "padding:8px 10px;cursor:pointer;font-size:14px;color:var(--texto);" +
+                            (opcao.value && opcao.value === select.value ? "font-weight:700;" : "");
+                        item.addEventListener("mouseenter", function () { item.style.background = "var(--bg)"; });
+                        item.addEventListener("mouseleave", function () { item.style.background = "transparent"; });
+                        // mousedown (não click) pra disparar antes do "blur" do campo de texto.
+                        item.addEventListener("mousedown", function (evento) {
+                            evento.preventDefault();
+                            escolher(opcao.value);
+                        });
+                        sugestoes.appendChild(item);
+                        achados++;
+                    });
+                    if (!achados) {
+                        var aviso = document.createElement("div");
+                        aviso.textContent = "Nenhum profissional encontrado.";
+                        aviso.style.cssText = "padding:8px 10px;font-size:13px;color:var(--texto-suave,#999);";
+                        sugestoes.appendChild(aviso);
+                    }
+                    sugestoes.style.display = "block";
+                }
+
+                busca.value = textoSelecionado();
+                busca.addEventListener("focus", function () { busca.select(); mostrar(); });
+                busca.addEventListener("input", function () { busca.setCustomValidity(""); mostrar(); });
+                busca.addEventListener("blur", function () {
+                    esconder();
+                    busca.value = textoSelecionado();
+                });
+                busca.addEventListener("keydown", function (evento) {
+                    if (evento.key === "Enter") {
+                        evento.preventDefault();
+                        var primeiro = sugestoes.querySelector("[data-valor]");
+                        if (primeiro) { escolher(primeiro.getAttribute("data-valor")); }
+                    } else if (evento.key === "Escape") {
+                        busca.blur();
+                    }
+                });
+                // Alguém trocou o <select> por código: mantém o texto em dia.
+                select.addEventListener("change", function () {
+                    if (document.activeElement !== busca) { busca.value = textoSelecionado(); }
+                });
+                // Campo obrigatório vazio: o <select> escondido não consegue mostrar o aviso do
+                // navegador — mostra na caixa de busca.
+                select.addEventListener("invalid", function (evento) {
+                    evento.preventDefault();
+                    busca.setCustomValidity("Escolha um profissional da lista.");
+                    busca.reportValidity();
+                });
+            }
+
+            document.querySelectorAll("select[name='profissional']").forEach(melhorar);
+        })();
+
+        // Envio duplo (clínica, 26/10/2026: pagamento gravado duas vezes): depois que um
+        // formulário POST sai, ignora novos envios dele até a página mudar. Não desabilita o
+        // botão — o botão desabilitado some dos dados enviados (ex.: name="acao"). O servidor
+        // também trava (ver agenda.views.agendamento_confirmar_pagamento); isto só evita a espera.
+        (function () {
+            document.addEventListener("submit", function (evento) {
+                var form = evento.target;
+                if (evento.defaultPrevented || (form.getAttribute("method") || "").toLowerCase() !== "post" || form.getAttribute("target")) { return; }
+                if (form.dataset.enviando) { evento.preventDefault(); return; }
+                form.dataset.enviando = "1";
+                form.style.opacity = "0.6";
+                // Resposta que não troca de página (download, erro de rede): libera de novo.
+                setTimeout(function () { delete form.dataset.enviando; form.style.opacity = ""; }, 10000);
+            });
+            // Voltar pelo navegador reabre a página do cache com o formulário ainda marcado.
+            window.addEventListener("pageshow", function () {
+                document.querySelectorAll("form[data-enviando]").forEach(function (form) {
+                    delete form.dataset.enviando;
+                    form.style.opacity = "";
+                });
+            });
+        })();
+    </script>
+</body>
+</html>

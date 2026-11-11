@@ -1,0 +1,55 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Usuários — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Usuários</h2>
+        <a href="{% url 'usuario_novo' %}" class="botao" style="text-decoration:none;">+ Novo usuário</a>
+    </div>
+
+    <table>
+        <tr>
+            <th>Usuário</th>
+            <th>Nome</th>
+            <th>Perfis</th>
+            <th>Situação</th>
+            <th></th>
+        </tr>
+        {% for usuario in pagina %}
+            <tr>
+                <td>{{ usuario.username }}</td>
+                <td>{{ usuario.get_full_name|default:"—" }}</td>
+                <td>
+                    {% for grupo in usuario.groups.all %}
+                        {{ grupo.name }}{% if not forloop.last %}, {% endif %}
+                    {% empty %}
+                        <em>Nenhum</em>
+                    {% endfor %}
+                </td>
+                <td>
+                    {% if usuario.status == "ATIVO" %}Ativo
+                    {% elif usuario.status == "BLOQUEADO" %}<span style="color:#c0392b;">Bloqueado</span>
+                    {% else %}Inativo{% endif %}
+                </td>
+                <td>
+                    <a href="{% url 'usuario_editar' usuario.pk %}">Editar</a>
+                    · <a href="{% url 'usuario_redefinir_senha' usuario.pk %}">Redefinir senha</a>
+                    {% if usuario.pk != request.user.pk %}
+                        · <form method="post" action="{% url 'usuario_alternar_status' usuario.pk %}" style="display:inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="botao-tema" style="padding:2px 8px;font-size:13px;">
+                                {% if usuario.status == "ATIVO" %}Desativar{% else %}Reativar{% endif %}
+                            </button>
+                        </form>
+                        {% if usuario.status == "INATIVO" %}
+                            · <a href="{% url 'usuario_excluir' usuario.pk %}" style="color:#c0392b;">Excluir</a>
+                        {% endif %}
+                    {% endif %}
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="5"><em>Nenhum usuário cadastrado.</em></td></tr>
+        {% endfor %}
+    </table>
+{% include 'accounts/_paginacao.html' %}
+{% endblock %}

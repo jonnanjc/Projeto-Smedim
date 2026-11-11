@@ -1,0 +1,82 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}{{ titulo }} — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <h2>{{ titulo }}</h2>
+    {% if form.duplicados %}{% include "cadastros/_aviso_paciente_duplicado.html" %}{% endif %}
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {% if eh_popup %}<input type="hidden" name="popup" value="1">{% endif %}
+        {% for campo in form %}
+            <div class="campo-bloco">
+                {{ campo.label_tag }}
+                {{ campo }}
+                {% if campo.help_text %}<div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">{{ campo.help_text }}</div>{% endif %}
+                {% for erro in campo.errors %}
+                    <div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+        {% if form.non_field_errors %}
+            {% for erro in form.non_field_errors %}
+                <div class="mensagem error">{{ erro }}</div>
+            {% endfor %}
+        {% endif %}
+        <button type="submit" class="botao">Salvar</button>
+        <a href="{{ voltar_url }}" style="margin-left:12px;">Cancelar</a>
+    </form>
+
+    <script>
+        (function () {
+            // Sempre que este formulário tiver os dois campos juntos (ex.: Limite
+            // diário, Tabela de preços do convênio), escolher o profissional
+            // restringe a lista de procedimentos aos que ele está habilitado a
+            // realizar (ver cadastros.views.procedimentos_do_profissional) — em
+            // vez de mostrar o cadastro inteiro de procedimentos. Não faz nada em
+            // formulários sem os dois campos (a maioria dos que usam este template).
+            var selectProfissional = document.getElementById("id_profissional");
+            var selectProcedimento = document.getElementById("id_procedimento");
+            if (!selectProfissional || !selectProcedimento) { return; }
+
+            var opcoesOriginais = selectProcedimento.innerHTML;
+
+            function atualizarProcedimentos() {
+                var profissionalId = selectProfissional.value;
+                if (!profissionalId) {
+                    selectProcedimento.innerHTML = opcoesOriginais;
+                    return;
+                }
+                var selecionadoAnterior = selectProcedimento.value;
+                fetch("{% url 'cadastros:procedimentos_do_profissional' 0 %}".replace("0", profissionalId))
+                    .then(function (resposta) { return resposta.json(); })
+                    .then(function (dados) {
+                        selectProcedimento.innerHTML = "";
+                        var opcaoVazia = document.createElement("option");
+                        opcaoVazia.value = "";
+                        opcaoVazia.textContent = "---------";
+                        selectProcedimento.appendChild(opcaoVazia);
+                        dados.procedimentos.forEach(function (procedimento) {
+                            var opcao = document.createElement("option");
+                            opcao.value = procedimento.id;
+                            opcao.textContent = procedimento.nome;
+                            if (String(procedimento.id) === String(selecionadoAnterior)) {
+                                opcao.selected = true;
+                            }
+                            selectProcedimento.appendChild(opcao);
+                        });
+                        if (!dados.procedimentos.length) {
+                            var opcaoAviso = document.createElement("option");
+                            opcaoAviso.disabled = true;
+                            opcaoAviso.textContent = "Nenhum procedimento vinculado a este profissional (Cadastros → Procedimentos)";
+                            selectProcedimento.appendChild(opcaoAviso);
+                        }
+                    });
+            }
+
+            selectProfissional.addEventListener("change", atualizarProcedimentos);
+            if (selectProfissional.value) {
+                atualizarProcedimentos();
+            }
+        })();
+    </script>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Ocupação de salas — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <style>
+        .tabela-ocupacao { border-collapse: collapse; width: 100%; font-size: 12px; }
+        .tabela-ocupacao th, .tabela-ocupacao td {
+            border: 1px solid var(--borda); padding: 4px 6px; text-align: left; white-space: nowrap;
+        }
+        .tabela-ocupacao th.rotulo-sala { background: var(--bg); white-space: normal; min-width: 140px; }
+        .celula-ocupada { background: var(--marca-clara); }
+        html[data-tema="escuro"] .celula-ocupada { background: #234034; }
+    </style>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Ocupação de salas</h2>
+        <a href="?data={{ data|date:'Y-m-d' }}&exportar=1" class="botao" style="text-decoration:none;">⬇ Exportar para planilha</a>
+    </div>
+
+    <form method="get" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin:16px 0;">
+        <div>
+            <label>Data:</label>
+            <input type="date" name="data" class="campo" value="{{ data|date:'Y-m-d' }}" onchange="this.form.submit()">
+        </div>
+    </form>
+
+    <p style="font-size:12px;color:var(--texto-suave);">
+        A sala de cada profissional é definida por ele mesmo em "Minha agenda" (uma escolha por dia). Esta
+        grade cruza essa escolha com os agendamentos do profissional naquele dia — preparação para o futuro
+        painel de fila/senha por sala.
+    </p>
+
+    <div style="overflow-x:auto;">
+        <table class="tabela-ocupacao">
+            <tr>
+                <th class="rotulo-sala">Sala</th>
+                {% for hora in grade.horarios %}<th>{{ hora }}</th>{% endfor %}
+            </tr>
+            {% for linha in grade.linhas %}
+                <tr>
+                    <th class="rotulo-sala">
+                        {{ linha.sala.nome }}
+                        {% if linha.profissionais %}
+                            <br><span style="font-weight:400;font-size:11px;color:var(--texto-suave);">
+                                {% for p in linha.profissionais %}{{ p.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                            </span>
+                        {% endif %}
+                    </th>
+                    {% for celula in linha.celulas %}
+                        <td class="{% if celula.ocupantes %}celula-ocupada{% endif %}">
+                            {% for ocupante in celula.ocupantes %}
+                                {{ ocupante.paciente.nome_completo }}{% if not forloop.last %}<br>{% endif %}
+                            {% endfor %}
+                        </td>
+                    {% endfor %}
+                </tr>
+            {% empty %}
+                <tr><td colspan="2"><em>Nenhuma sala ativa cadastrada.</em></td></tr>
+            {% endfor %}
+        </table>
+    </div>
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}{% if lote %}Editar lote{% else %}Novo lote de faturamento{% endif %} — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <h2>{% if lote %}Editar lote {{ lote.identificacao }} — {{ lote.convenio.nome }}{% else %}Novo lote de faturamento{% endif %}</h2>
+
+    {% if not convenio %}
+        <p style="color:var(--texto-suave);">Escolha o convênio para carregar os atendimentos elegíveis (Autorizados ou Realizados, ainda não incluídos em outro lote pendente).</p>
+        <form method="get" style="display:flex;gap:8px;align-items:center;">
+            <select name="convenio" class="campo" style="display:inline-block;width:auto;">
+                <option value="">Selecione...</option>
+                {% for c in convenios %}<option value="{{ c.pk }}">{{ c.nome }}</option>{% endfor %}
+            </select>
+            <button type="submit" class="botao">Continuar</button>
+        </form>
+    {% else %}
+        {% if not lote %}
+            <p style="font-size:13px;color:var(--texto-suave);">
+                Convênio: <strong>{{ convenio.nome }}</strong> —
+                <a href="{% url 'financeiro:lote_novo' %}">trocar convênio</a>
+            </p>
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+            {% comment %}
+                O <select> de convênio abaixo vem 'disabled' (trava contra troca no meio do preenchimento) —
+                campo desabilitado nunca é enviado pelo navegador, então este hidden garante que o servidor
+                saiba qual convênio é este POST (ver financeiro.views.lote_novo).
+            {% endcomment %}
+            <input type="hidden" name="convenio" value="{{ convenio.pk }}">
+            {% for campo in form %}
+                <div class="campo-bloco" {% if campo.is_hidden %}style="display:none;"{% endif %}>
+                    {% if not campo.is_hidden %}{{ campo.label_tag }}{% endif %}
+                    {{ campo }}
+                    {% if campo.help_text %}<div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">{{ campo.help_text }}</div>{% endif %}
+                    {% for erro in campo.errors %}
+                        <div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+            {% if form.non_field_errors %}
+                {% for erro in form.non_field_errors %}
+                    <div class="mensagem error">{{ erro }}</div>
+                {% endfor %}
+            {% endif %}
+
+            <h3 style="margin-top:24px;">Atendimentos elegíveis {% if lote %}(desmarque para remover do lote){% endif %}</h3>
+            {% if not agendamentos_elegiveis %}
+                <p><em>Nenhum atendimento Autorizado/Realizado deste convênio disponível para lote no momento.</em></p>
+            {% else %}
+                <table>
+                    <tr>
+                        <th></th>
+                        <th>Data</th>
+                        <th>Paciente</th>
+                        <th>Profissional</th>
+                        <th>Procedimento</th>
+                        <th>Valor</th>
+                    </tr>
+                    {% for agendamento in agendamentos_elegiveis %}
+                        <tr>
+                            <td>
+                                <input type="checkbox" name="agendamentos" value="{{ agendamento.pk }}"
+                                    {% if agendamento.pk in ja_incluidos_ids %}checked{% endif %}>
+                            </td>
+                            <td>{{ agendamento.data_hora_inicio|date:"d/m/Y" }}</td>
+                            <td>{{ agendamento.paciente.nome_completo }}</td>
+                            <td>{{ agendamento.profissional.nome }}</td>
+                            <td>
+                                {{ agendamento.itens_resumo }}
+                                {% if agendamento.guias_pendentes %}
+                                    <div style="font-size:12px;color:#b9770e;margin-top:2px;">
+                                        {{ agendamento.guias_pendentes }} guia{{ agendamento.guias_pendentes|pluralize }} de sessão ainda não autorizada{{ agendamento.guias_pendentes|pluralize }} —
+                                        o valor deste atendimento ainda vai aumentar
+                                        (<a href="{% url 'agenda:guias_pendentes' %}?profissional={{ agendamento.profissional_id }}" target="_blank">ver guias pendentes</a>)
+                                    </div>
+                                {% endif %}
+                            </td>
+                            <td>R$ {{ agendamento.valor_convenio|default:"0,00" }}</td>
+                        </tr>
+                    {% endfor %}
+                </table>
+            {% endif %}
+
+            <div style="margin-top:20px;">
+                <button type="submit" class="botao">{% if lote %}Salvar alterações{% else %}Criar lote{% endif %}</button>
+                <a href="{% if lote %}{% url 'financeiro:lote_detalhe' lote.pk %}{% else %}{% url 'financeiro:lote_lista' %}{% endif %}" style="margin-left:12px;">Cancelar</a>
+            </div>
+        </form>
+    {% endif %}
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Trocar senha — Clínica SMEDIM{% endblock %}
+{% block conteudo %}
+    <h2>Definir nova senha</h2>
+    <p>Por segurança, você precisa definir uma nova senha antes de continuar.</p>
+    <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="campo-bloco">
+            <label for="{{ form.new_password1.id_for_label }}">Nova senha</label>
+            <div class="campo-senha-wrapper">
+                {{ form.new_password1 }}
+                <button type="button" class="botao-mostrar-senha"
+                        onclick="alternarSenha('{{ form.new_password1.id_for_label }}', this)">Mostrar</button>
+            </div>
+            {% if form.new_password1.errors %}
+                <div class="mensagem error">{{ form.new_password1.errors|striptags }}</div>
+            {% endif %}
+        </div>
+        <div class="campo-bloco">
+            <label for="{{ form.new_password2.id_for_label }}">Confirmar nova senha</label>
+            <div class="campo-senha-wrapper">
+                {{ form.new_password2 }}
+                <button type="button" class="botao-mostrar-senha"
+                        onclick="alternarSenha('{{ form.new_password2.id_for_label }}', this)">Mostrar</button>
+            </div>
+            {% if form.new_password2.errors %}
+                <div class="mensagem error">{{ form.new_password2.errors|striptags }}</div>
+            {% endif %}
+        </div>
+        <button class="botao" type="submit">Salvar nova senha</button>
+    </form>
+{% endblock %}

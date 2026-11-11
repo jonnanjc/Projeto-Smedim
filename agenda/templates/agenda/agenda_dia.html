@@ -1,0 +1,639 @@
+{% extends "accounts/base.html" %}
+{% load tz %}
+{% block titulo %}Agenda — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <style>
+        .cal-grade {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            border: 1px solid var(--borda);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .cal-dow {
+            text-align: center;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--texto-suave);
+            padding: 8px 0;
+            background: var(--bg);
+            border-bottom: 1px solid var(--borda);
+        }
+        .cal-dia {
+            min-height: 64px;
+            padding: 6px;
+            border-right: 1px solid var(--borda);
+            border-bottom: 1px solid var(--borda);
+            font-size: 13px;
+            position: relative;
+            text-decoration: none;
+            color: var(--texto);
+            display: block;
+        }
+        .cal-dia:hover { background: var(--bg); }
+        .cal-dia.fora-mes { opacity: 0.35; }
+        .cal-numero { display: inline-block; }
+        .cal-dia.hoje .cal-numero {
+            background: var(--marca-escura);
+            color: #fff;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+        .cal-dia.selecionado { background: var(--marca-clara); }
+        html[data-tema="escuro"] .cal-dia.selecionado { background: #234034; }
+        .cal-dots { display: flex; gap: 3px; margin-top: 6px; flex-wrap: wrap; align-items: center; }
+        .cal-dots span.bolinha { width: 6px; height: 6px; border-radius: 50%; background: var(--marca); display: inline-block; }
+        .cal-dots span.mais { font-size: 10px; color: var(--texto-suave); }
+
+        .agenda-layout { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+        .agenda-calendario { flex: 0 0 460px; max-width: 100%; }
+        .agenda-calendario.cheio { flex: 1 1 auto; max-width: 640px; margin: 0 auto; }
+
+        .cal-cabecalho { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .cal-nav-botao {
+            border: 1px solid var(--borda);
+            background: var(--bg);
+            color: var(--texto);
+            border-radius: 6px;
+            width: 28px;
+            height: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            font-size: 15px;
+            line-height: 1;
+        }
+        .cal-nav-botao:hover { border-color: var(--marca-escura); color: var(--marca-escura); }
+
+        /* Faixa de resumo do profissional filtrado (ver _resumo_profissional_no_dia). */
+        .resumo-profissional {
+            background: var(--bg-cartao); border: 1px solid var(--borda); border-radius: 8px;
+            padding: 10px 14px; margin: -4px 0 14px; font-size: 14px;
+        }
+        .resumo-linha { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .resumo-sep { color: var(--texto-suave); }
+        .resumo-cancelados { font-size: 12px; color: var(--texto-suave); }
+        .resumo-proximo { margin-left: auto; color: var(--texto-suave); font-size: 13px; }
+        .resumo-procedimentos {
+            display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; padding-top: 8px;
+            border-top: 1px solid var(--borda);
+        }
+        .resumo-pill { display: inline-block; font-size: 12px; padding: 3px 9px; border-radius: 999px; }
+        .pill-confirmado { background: #e1f5ee; color: #0f6e56; }
+        .pill-a-confirmar { background: #faeeda; color: #854f0b; }
+        .pill-atendido { background: #e6f1fb; color: #185fa5; }
+        .pill-faltou { background: #fcebeb; color: #a32d2d; }
+        .pill-procedimento { background: var(--bg); color: var(--texto-suave); border: 1px solid var(--borda); }
+        html[data-tema="escuro"] .pill-confirmado { background: #085041; color: #9fe1cb; }
+        html[data-tema="escuro"] .pill-a-confirmar { background: #633806; color: #fac775; }
+        html[data-tema="escuro"] .pill-atendido { background: #0c447c; color: #b5d4f4; }
+        html[data-tema="escuro"] .pill-faltou { background: #791f1f; color: #f7c1c1; }
+        .pill-retorno { background: #eeedfe; color: #534ab7; }
+        html[data-tema="escuro"] .pill-retorno { background: #3c3489; color: #cecbf6; }
+        .abas-visao { display: flex; gap: 6px; margin: 4px 0 16px; }
+        .abas-visao a {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 8px;
+            border: 1px solid var(--borda);
+            color: var(--texto);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .abas-visao a.ativa { background: var(--marca-escura); color: #fff; border-color: var(--marca-escura); }
+        .abas-visao a:not(.ativa):hover { border-color: var(--marca); }
+
+        /* Botões de ação pequenos dentro da tabela — largura/altura calculadas
+           para o texto nunca estourar o fundo arredondado. */
+        .botao-mini {
+            display: inline-block;
+            background: none;
+            border: 1px solid var(--borda);
+            color: var(--texto);
+            border-radius: 14px;
+            padding: 4px 11px;
+            font-size: 12px;
+            line-height: 1.5;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+        .botao-mini:hover { border-color: var(--marca); }
+
+        /* ---------- Grade de horários (visões Dia/Semana, estilo Google Agenda) ---------- */
+        .agenda-grade-tempo {
+            flex: 1;
+            min-width: 340px;
+            border: 1px solid var(--borda);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .grade-cabecalho { display: flex; border-bottom: 1px solid var(--borda); background: var(--bg); }
+        .grade-rotulo-vazio { flex: 0 0 52px; }
+        .grade-titulo-coluna {
+            flex: 1;
+            min-width: 0;
+            text-align: center;
+            padding: 8px 4px;
+            font-size: 12px;
+            font-weight: 700;
+            border-left: 1px solid var(--borda);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .grade-titulo-coluna.hoje { color: var(--marca-escura); }
+        .grade-corpo { display: flex; position: relative; overflow-y: auto; max-height: 640px; }
+        .grade-horas { flex: 0 0 52px; box-sizing: border-box; }
+        .grade-hora-rotulo {
+            font-size: 11px;
+            color: var(--texto-suave);
+            text-align: right;
+            padding-right: 6px;
+            box-sizing: border-box;
+        }
+        .grade-colunas { flex: 1; display: flex; position: relative; }
+        .grade-coluna { flex: 1; min-width: 0; position: relative; border-left: 1px solid var(--borda); }
+        .bloco-evento {
+            position: absolute;
+            border-radius: 6px;
+            padding: 3px 6px;
+            font-size: 11px;
+            color: #fff;
+            background: var(--marca-escura);
+            overflow: hidden;
+            text-decoration: none;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+            line-height: 1.3;
+            box-sizing: border-box;
+        }
+        .bloco-evento.status-agendado, .bloco-evento.status-confirmado { background: var(--marca-escura); }
+        .bloco-evento.status-realizado { background: #5a6169; }
+        .bloco-evento.status-faltou { background: #c0392b; }
+        .bloco-evento.status-pre_confirmado { background: #2f6f9e; }
+        .bloco-evento.status-pre_autorizado { background: #b26a00; }
+        .bloco-evento.status-autorizado { background: #1d5a42; }
+        /* Lista do turno (consulta/exame sem hora marcada) — um card por profissional/turno. */
+        .bloco-evento.bloco-lista { background: #4b6584; }
+        .bloco-evento small { display: block; opacity: 0.85; }
+        .grade-vazia { padding: 24px; text-align: center; color: var(--texto-suave); }
+
+        .olho-observacao { display: inline-block; position: relative; margin-left: 4px; }
+        .olho-observacao > summary {
+            list-style: none; cursor: pointer; font-size: 13px; user-select: none;
+        }
+        .olho-observacao > summary::-webkit-details-marker { display: none; }
+        .olho-observacao > summary::marker { content: ""; }
+        .olho-observacao[open] > summary { opacity: 0.6; }
+        .olho-observacao .balao-observacao {
+            position: absolute; z-index: 5; top: 20px; left: 0; min-width: 220px; max-width: 300px;
+            background: var(--bg-cartao); border: 1px solid var(--borda); border-radius: 8px;
+            padding: 8px 10px; font-size: 12px; color: var(--texto); box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+            white-space: normal;
+        }
+        /* Volta pra linha que acabou de mudar de situação (ver agendamento_mudar_status):
+           no meio da tela, não colada no topo, e piscando de leve pra achar com o olho. */
+        .linha-agendamento { scroll-margin-top: 35vh; }
+        .linha-agendamento:target td { animation: destacar-linha 2.5s ease-out; }
+        @keyframes destacar-linha {
+            from { background: rgba(68, 178, 133, 0.35); }
+            to { background: transparent; }
+        }
+    </style>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Agenda</h2>
+        {% if perms.accounts.agenda_criar %}
+            <a href="{% url 'agenda:agendamento_novo' %}?data={{ data|date:'Y-m-d' }}{% if profissional_selecionado %}&profissional={{ profissional_selecionado }}{% endif %}" class="botao" style="text-decoration:none;">+ Novo agendamento</a>
+        {% endif %}
+    </div>
+
+    {% if form_guiche %}
+        <form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0;">
+            {% csrf_token %}
+            <input type="hidden" name="form" value="guiche">
+            <input type="hidden" name="data" value="{{ data|date:'Y-m-d' }}">
+            <input type="hidden" name="visao" value="{{ visao }}">
+            <label style="font-size:13px;">Estou no guichê:</label>
+            {{ form_guiche.guiche }}
+            <button type="submit" class="botao-mini">Definir guichê de hoje</button>
+            {% if guiche_de_hoje %}
+                <span style="font-size:12px;color:var(--texto-suave);">(hoje: {{ guiche_de_hoje.nome }})</span>
+            {% endif %}
+        </form>
+    {% endif %}
+
+    {% if form_especialidades %}
+        <form method="post" style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;margin:12px 0;">
+            {% csrf_token %}
+            <input type="hidden" name="form" value="especialidades">
+            <input type="hidden" name="data" value="{{ data|date:'Y-m-d' }}">
+            <input type="hidden" name="visao" value="{{ visao }}">
+            <label style="font-size:13px;padding-top:4px;">Especialidades de hoje:</label>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;max-width:620px;">
+                {% for checkbox, profissionais in form_especialidades.grupos %}
+                    <div style="display:flex;flex-direction:column;gap:2px;">
+                        <label style="font-size:13px;display:flex;align-items:center;gap:4px;font-weight:normal;">
+                            {{ checkbox.tag }} {{ checkbox.choice_label }}
+                        </label>
+                        {% if profissionais %}
+                            {# Especialidade com 2+ profissionais hoje: marque só os que você atende (nenhum = todos). #}
+                            <div style="margin-left:20px;font-size:12px;color:var(--texto-suave);">
+                                Só os profissionais (nenhum = todos):
+                                {% for caixa in profissionais %}
+                                    <label style="font-size:12px;display:flex;align-items:center;gap:4px;font-weight:normal;color:var(--texto);">
+                                        {{ caixa.tag }} {{ caixa.choice_label }}
+                                    </label>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                {% empty %}
+                    <span style="font-size:12px;color:var(--texto-suave);">Nenhuma especialidade com atendimento hoje.</span>
+                {% endfor %}
+            </div>
+            <button type="submit" class="botao-mini">Salvar especialidades de hoje</button>
+        </form>
+    {% endif %}
+
+    <form method="get" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin:16px 0;">
+        <input type="hidden" name="data" value="{{ data|date:'Y-m-d' }}">
+        <input type="hidden" name="visao" value="{{ visao }}">
+        <div>
+            <label for="select-profissional">Profissional:</label>
+            <select name="profissional" id="select-profissional" class="campo" onchange="this.form.submit()">
+                <option value="">Todos</option>
+                {% for profissional in profissionais %}
+                    <option value="{{ profissional.pk }}" {% if profissional_selecionado == profissional.pk|stringformat:"s" %}selected{% endif %}>{{ profissional.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </form>
+
+    {% if especialidades_hoje_rotulos %}
+        <p style="font-size:13px;color:var(--texto-suave);margin:-8px 0 16px;">
+            Mostrando só {{ especialidades_hoje_rotulos|join:", " }} (suas especialidades de hoje) — escolha um Profissional acima para ver outra especialidade.
+        </p>
+    {% endif %}
+
+    {% if resumo_profissional %}
+        {% with r=resumo_profissional %}
+        <div class="resumo-profissional">
+            <div class="resumo-linha">
+                <strong>{{ r.total }} agendado{{ r.total|pluralize }}</strong>
+                {% if r.total %}
+                    <span class="resumo-sep">·</span>
+                    {% if r.confirmados %}<span class="resumo-pill pill-confirmado">{{ r.confirmados }} confirmado{{ r.confirmados|pluralize }}</span>{% endif %}
+                    {% if r.a_confirmar %}<span class="resumo-pill pill-a-confirmar">{{ r.a_confirmar }} a confirmar</span>{% endif %}
+                    {% if r.atendidos %}<span class="resumo-pill pill-atendido">{{ r.atendidos }} atendido{{ r.atendidos|pluralize }}</span>{% endif %}
+                    {% if r.faltas %}<span class="resumo-pill pill-faltou">{{ r.faltas }} falt{{ r.faltas|pluralize:"ou,aram" }}</span>{% endif %}
+                {% endif %}
+                {% if r.cancelados %}<span class="resumo-cancelados">({{ r.cancelados }} cancelado{{ r.cancelados|pluralize }})</span>{% endif %}
+                {% if r.proximo %}
+                    <span class="resumo-proximo">→ Próximo: {% if r.proximo.sem_hora_marcada %}{{ r.proximo.turno_rotulo }}{% else %}{{ r.proximo.data_hora_inicio|time:"H:i" }}{% endif %} {{ r.proximo.paciente.nome_exibicao_publica }}</span>
+                {% endif %}
+            </div>
+            {% if r.procedimentos %}
+                <div class="resumo-procedimentos">
+                    {% for p in r.procedimentos %}{% if p.retorno %}<span class="resumo-pill pill-retorno">{{ p.nome }} – retorno ×{{ p.total }}</span>{% else %}<span class="resumo-pill pill-procedimento">{{ p.nome }} ×{{ p.total }}</span>{% endif %}{% endfor %}
+                </div>
+            {% endif %}
+        </div>
+        {% endwith %}
+    {% endif %}
+
+    <div class="abas-visao">
+        <a class="{% if visao == 'dia' %}ativa{% endif %}" href="?data={{ data|date:'Y-m-d' }}&visao=dia{% if profissional_selecionado %}&profissional={{ profissional_selecionado }}{% endif %}">Dia</a>
+        <a class="{% if visao == 'semana' %}ativa{% endif %}" href="?data={{ data|date:'Y-m-d' }}&visao=semana{% if profissional_selecionado %}&profissional={{ profissional_selecionado }}{% endif %}">Semana</a>
+        <a class="{% if visao == 'mes' %}ativa{% endif %}" href="?data={{ data|date:'Y-m-d' }}&visao=mes{% if profissional_selecionado %}&profissional={{ profissional_selecionado }}{% endif %}">Mês</a>
+    </div>
+
+    <div class="agenda-layout">
+        <div class="agenda-calendario{% if visao == 'mes' %} cheio{% endif %}">
+            <div class="cal-cabecalho">
+                <a class="cal-nav-botao" href="?data={{ mes_anterior|date:'Y-m-d' }}&visao={{ visao }}{% if profissional_selecionado %}&profissional={{ profissional_selecionado }}{% endif %}" title="Mês anterior">‹</a>
+                <strong>{{ mes_atual|date:"F \d\e Y"|capfirst }}</strong>
+                <a class="cal-nav-botao" href="?data={{ mes_seguinte|date:'Y-m-d' }}&visao={{ visao }}{% if profissional_selecionado %}&profissional={{ profissional_selecionado }}{% endif %}" title="Mês seguinte">›</a>
+            </div>
+            <div class="cal-grade">
+                <div class="cal-dow">Dom</div><div class="cal-dow">Seg</div><div class="cal-dow">Ter</div>
+                <div class="cal-dow">Qua</div><div class="cal-dow">Qui</div><div class="cal-dow">Sex</div><div class="cal-dow">Sáb</div>
+                {% for semana in semanas_calendario %}
+                    {% for dia in semana %}
+                        <a class="cal-dia{% if not dia.no_mes %} fora-mes{% endif %}{% if dia.hoje %} hoje{% endif %}{% if dia.selecionado %} selecionado{% endif %}"
+                           href="?data={{ dia.data|date:'Y-m-d' }}&visao={{ visao }}{% if profissional_selecionado %}&profissional={{ profissional_selecionado }}{% endif %}">
+                            <span class="cal-numero">{{ dia.data|date:"j" }}</span>
+                            {% if dia.quantidade %}
+                                <div class="cal-dots">
+                                    {% for _ in dia.pontos %}<span class="bolinha"></span>{% endfor %}
+                                    {% if dia.pontos_extra %}<span class="mais">+{{ dia.pontos_extra }}</span>{% endif %}
+                                </div>
+                            {% endif %}
+                        </a>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        </div>
+
+        {% if visao == "dia" %}
+            <div class="agenda-grade-tempo">
+                <div class="grade-cabecalho">
+                    <div class="grade-rotulo-vazio"></div>
+                    {% for coluna in colunas_dia %}
+                        <div class="grade-titulo-coluna">{{ coluna.profissional.nome }}</div>
+                    {% endfor %}
+                </div>
+                {% if colunas_dia %}
+                    <div class="grade-corpo" style="height:{{ altura_total_grade }}px;">
+                        <div class="grade-horas">
+                            {% for hora in horas_grade %}
+                                <div class="grade-hora-rotulo" style="height:{{ pixels_por_hora }}px;">{{ hora }}:00</div>
+                            {% endfor %}
+                        </div>
+                        <div class="grade-colunas">
+                            {% for coluna in colunas_dia %}
+                                <div class="grade-coluna" style="background-image:repeating-linear-gradient(to bottom, var(--borda) 0, var(--borda) 1px, transparent 1px, transparent {{ pixels_por_hora }}px);">
+                                    {% for bloco in coluna.blocos %}
+                                        {% if bloco.lista %}
+                                            <a class="bloco-evento bloco-lista" href="{% url 'agenda:agenda_dia' %}?data={{ bloco.data_iso }}&visao=dia&profissional={{ bloco.agendamento.profissional_id }}#lista-dia"
+                                                style="top:{{ bloco.top }}px;height:{{ bloco.altura }}px;left:{{ bloco.esquerda }}%;width:{{ bloco.largura }}%;"
+                                                title="{{ bloco.agendamento.turno_rotulo }} — {{ bloco.agendamento.profissional.nome }} — ordem de agendamento: {{ bloco.nomes }}">
+                                                <strong>📋 {{ bloco.agendamento.turno_rotulo }}</strong> · {{ bloco.lista|length }} paciente{{ bloco.lista|length|pluralize }}
+                                                <small>{{ bloco.agendamento.profissional.nome }}</small>
+                                            </a>
+                                        {% else %}
+                                        <a class="bloco-evento status-{{ bloco.agendamento.status|lower }}"
+                                           style="top:{{ bloco.top }}px;height:{{ bloco.altura }}px;left:{{ bloco.esquerda }}%;width:{{ bloco.largura }}%;"
+                                           href="{% url 'agenda:agendamento_editar' bloco.agendamento.pk %}"
+                                           title="{{ bloco.agendamento.paciente.nome_completo }} — {{ bloco.hora_inicio_texto }}{% if bloco.hora_fim_texto %} às {{ bloco.hora_fim_texto }}{% endif %} ({{ bloco.agendamento.get_status_display }})">
+                                            <strong>{{ bloco.hora_inicio_texto }}</strong> {{ bloco.agendamento.paciente.primeiro_nome }}
+                                        </a>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="grade-vazia">Nenhum agendamento neste dia{% if profissional_selecionado %} para este profissional{% endif %}.</div>
+                {% endif %}
+            </div>
+        {% elif visao == "semana" %}
+            <div class="agenda-grade-tempo">
+                <div style="display:flex;justify-content:flex-end;gap:6px;padding:6px 8px;border-bottom:1px solid var(--borda);background:var(--bg);">
+                    <span style="margin-right:auto;font-size:12px;color:var(--texto-suave);align-self:center;">Semana de {{ intervalo_inicio|date:"d/m" }} a {{ intervalo_fim|date:"d/m/Y" }}</span>
+                    <a class="cal-nav-botao" href="?data={{ semana_anterior|date:'Y-m-d' }}&visao=semana{% if profissional_selecionado %}&profissional={{ profissional_selecionado }}{% endif %}" title="Semana anterior">‹</a>
+                    <a class="cal-nav-botao" href="?data={{ semana_seguinte|date:'Y-m-d' }}&visao=semana{% if profissional_selecionado %}&profissional={{ profissional_selecionado }}{% endif %}" title="Semana seguinte">›</a>
+                </div>
+                <div class="grade-cabecalho">
+                    <div class="grade-rotulo-vazio"></div>
+                    {% for dia in dias_semana %}
+                        <div class="grade-titulo-coluna{% if dia.hoje %} hoje{% endif %}">{{ dia.data|date:"D" }}<br>{{ dia.data|date:"d/m" }}</div>
+                    {% endfor %}
+                </div>
+                <div class="grade-corpo" style="height:{{ altura_total_grade }}px;">
+                    <div class="grade-horas">
+                        {% for hora in horas_grade %}
+                            <div class="grade-hora-rotulo" style="height:{{ pixels_por_hora }}px;">{{ hora }}:00</div>
+                        {% endfor %}
+                    </div>
+                    <div class="grade-colunas">
+                        {% for dia in dias_semana %}
+                            <div class="grade-coluna" style="background-image:repeating-linear-gradient(to bottom, var(--borda) 0, var(--borda) 1px, transparent 1px, transparent {{ pixels_por_hora }}px);">
+                                {% for bloco in dia.blocos %}
+                                    {% if bloco.lista %}
+                                        <a class="bloco-evento bloco-lista" href="{% url 'agenda:agenda_dia' %}?data={{ bloco.data_iso }}&visao=dia&profissional={{ bloco.agendamento.profissional_id }}#lista-dia"
+                                            style="top:{{ bloco.top }}px;height:{{ bloco.altura }}px;left:{{ bloco.esquerda }}%;width:{{ bloco.largura }}%;"
+                                            title="{{ bloco.agendamento.turno_rotulo }} — {{ bloco.agendamento.profissional.nome }} — ordem de agendamento: {{ bloco.nomes }}">
+                                            <strong>📋 {{ bloco.agendamento.turno_rotulo }}</strong> · {{ bloco.lista|length }} paciente{{ bloco.lista|length|pluralize }}
+                                            <small>{{ bloco.agendamento.profissional.nome }}</small>
+                                        </a>
+                                    {% else %}
+                                    <a class="bloco-evento status-{{ bloco.agendamento.status|lower }}"
+                                       style="top:{{ bloco.top }}px;height:{{ bloco.altura }}px;left:{{ bloco.esquerda }}%;width:{{ bloco.largura }}%;"
+                                       href="{% url 'agenda:agendamento_editar' bloco.agendamento.pk %}"
+                                       title="{{ bloco.agendamento.paciente.nome_completo }} — {{ bloco.agendamento.profissional.nome }} — {{ bloco.hora_inicio_texto }}{% if bloco.hora_fim_texto %} às {{ bloco.hora_fim_texto }}{% endif %}">
+                                        <strong>{{ bloco.hora_inicio_texto }}</strong> {{ bloco.agendamento.paciente.primeiro_nome }}
+                                        <small>{{ bloco.agendamento.profissional.nome }}</small>
+                                    </a>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    {% if visao == "dia" %}
+        <h3 id="lista-dia" style="margin:24px 0 8px;">Lista do dia / ações rápidas</h3>
+        <table>
+            <tr>
+                <th>Horário</th>
+                <th>Paciente</th>
+                <th>Telefone</th>
+                <th>Profissional</th>
+                <th>Procedimento</th>
+                <th>Forma</th>
+                <th>Situação</th>
+                <th></th>
+            </tr>
+            {% for agendamento in agendamentos %}
+                {# id = âncora pra onde agendamento_mudar_status volta depois de Pré-confirmar/Confirmar etc. #}
+                <tr id="agendamento-{{ agendamento.pk }}" class="linha-agendamento">
+                    <td>{{ agendamento.horario_exibicao }}</td>
+                    <td>
+                        {{ agendamento.paciente.nome_completo }}
+                        {% if agendamento.encaixe %}
+                            <span title="Encaixe — exceção de agenda" style="font-size:11px;font-weight:600;background:#e67e22;color:#fff;border-radius:10px;padding:1px 7px;margin-left:4px;">🔶 Encaixe</span>
+                            {# Retorno além do limite diário vira encaixe sem justificativa (23/10/2026) — justifica editando. #}
+                            {% if not agendamento.observacoes.strip and perms.accounts.agenda_editar %}
+                                <a href="{% url 'agenda:agendamento_editar' agendamento.pk %}" title="Encaixe sem justificativa — clique para escrever o motivo nas observações" style="font-size:11px;font-weight:600;color:#c0392b;margin-left:4px;">justificar</a>
+                            {% endif %}
+                        {% endif %}
+                        {% if agendamento.tem_item_retorno %}
+                            <span title="{% with ref=agendamento.retorno_referencia %}{% if ref %}Retorno da consulta de {{ ref.data_hora_inicio|date:'d/m/Y' }}{% else %}Retorno de consulta do sistema antigo{% endif %}{% endwith %} — não gera cobrança" style="font-size:11px;font-weight:600;background:var(--marca-escura);color:#fff;border-radius:10px;padding:1px 7px;margin-left:4px;">🔁 Retorno</span>
+                        {% endif %}
+                        {% if agendamento.tem_item_pacote %}
+                            <span title="Já pago no pacote do paciente — não gera cobrança" style="font-size:11px;font-weight:600;background:#16a085;color:#fff;border-radius:10px;padding:1px 7px;margin-left:4px;">📦 Pacote</span>
+                        {% endif %}
+                        {% if agendamento.observacoes %}
+                            <details class="olho-observacao" title="Ver observação">
+                                <summary>👁️</summary>
+                                <div class="balao-observacao">{{ agendamento.observacoes }}</div>
+                            </details>
+                        {% endif %}
+                        {% if agendamento.carteirinha_vencida_no_atendimento %}
+                            <br><span style="color:#c0392b;font-size:12px;font-weight:600;">carteirinha vencida</span>
+                        {% endif %}
+                        {# Quem marcou o agendamento (Agendamento.criado_por) — pedido da clínica, 2026-10-16. #}
+                        {% if agendamento.criado_por %}
+                            <br><span style="font-size:11px;color:var(--texto-suave);" title="Agendado em {{ agendamento.criado_em|date:'d/m/Y H:i' }}">agendado por {{ agendamento.criado_por.get_full_name|default:agendamento.criado_por.username }}</span>
+                        {% endif %}
+                        {% if user.profissional_id and agendamento.paciente.ativo %}
+                            <br><a href="{% url 'prontuario:prontuario_paciente' agendamento.paciente.pk %}" style="font-size:12px;">Prontuário</a>
+                        {% endif %}
+                    </td>
+                    {# Telefone do cadastro, pra recepção confirmar o atendimento direto da lista. #}
+                    <td style="white-space:nowrap;">{{ agendamento.paciente.telefone|default:"—" }}</td>
+                    <td>{{ agendamento.profissional.nome }}</td>
+                    <td>{{ agendamento.itens_resumo }}</td>
+                    <td>
+                        {% if agendamento.forma_atendimento == "CONVENIO" %}
+                            {{ agendamento.convenio|default:"Convênio" }}
+                        {% else %}
+                            Particular
+                            {% with primeiro_pagamento=agendamento.pagamentos.first %}
+                                {% if primeiro_pagamento %}
+                                    {% if primeiro_pagamento.forma_pagamento == "CORTESIA" %}
+                                        <br><span style="font-size:12px;color:var(--texto-suave);">Cortesia (sem cobrança)</span>
+                                    {% else %}
+                                        <br><span style="font-size:12px;color:var(--texto-suave);">
+                                            {% if agendamento.valor_cobrado %}R$ {{ agendamento.valor_cobrado }}{% else %}R$ 0,00{% endif %}
+                                        </span>
+                                        {% for p in agendamento.pagamentos.all %}
+                                            <br>
+                                            {% if p.estornado %}
+                                                <span style="font-size:11px;color:#c0392b;">
+                                                    <s>{{ p.get_forma_pagamento_display }} — R$ {{ p.valor }}</s> (estornado)
+                                                </span>
+                                            {% else %}
+                                                <span style="font-size:11px;color:var(--texto-suave);">
+                                                    {{ p.get_forma_pagamento_display }} — R$ {{ p.valor }}
+                                                    {% if perms.accounts.financeiro_estornar %}
+                                                        <a href="{% url 'financeiro:pagamento_estornar' p.pk %}" style="font-size:11px;" title="Estornar este pagamento">estornar</a>
+                                                    {% endif %}
+                                                </span>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
+                                {% endif %}
+                            {% endwith %}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if agendamento.status == "CANCELADO" %}<span style="color:#c0392b;">Cancelado</span>
+                        {% elif agendamento.status == "FALTOU" %}<span style="color:#c0392b;">Faltou</span>
+                        {% elif agendamento.status == "REALIZADO" %}<span style="color:var(--marca-escura);">Realizado</span>
+                        {% else %}{{ agendamento.get_status_display }}{% endif %}
+                    </td>
+                    <td style="white-space:nowrap;">
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                        {% if agendamento.status == "CANCELADO" %}
+                            {% if perms.accounts.agenda_editar %}
+                                <a href="{% url 'agenda:agendamento_excluir' agendamento.pk %}">Excluir</a>
+                            {% endif %}
+                        {% else %}
+                            {% if perms.accounts.agenda_editar %}
+                                {% comment %}
+                                    Pré-confirmar/Confirmar/Faltou são etapas de recepção (e, no caso de
+                                    particular, do financeiro autorizando o pagamento) — ficam de fora do
+                                    que o profissional vê em 'Minha agenda' de propósito.
+                                {% endcomment %}
+                                {% if agendamento.status == "AGENDADO" %}
+                                    <form method="post" action="{% url 'agenda:agendamento_mudar_status' agendamento.pk 'PRE_CONFIRMADO' %}" style="display:inline-flex;">
+                                        {% csrf_token %}<button type="submit" class="botao-mini">Pré-confirmar</button>
+                                    </form>
+                                {% endif %}
+                                {% if agendamento.status == "PRE_CONFIRMADO" %}
+                                    <form method="post" action="{% url 'agenda:agendamento_mudar_status' agendamento.pk 'CONFIRMADO' %}" style="display:inline-flex;">
+                                        {% csrf_token %}<button type="submit" class="botao-mini">Confirmar</button>
+                                    </form>
+                                {% endif %}
+                                {# Faltou, como Cancelar, só até a autorização (23/10/2026). #}
+                                {% if agendamento.status != "REALIZADO" and agendamento.status != "AUTORIZADO" %}
+                                    <form method="post" action="{% url 'agenda:agendamento_mudar_status' agendamento.pk 'FALTOU' %}" style="display:inline-flex;">
+                                        {% csrf_token %}<button type="submit" class="botao-mini">Faltou</button>
+                                    </form>
+                                {% endif %}
+                            {% endif %}
+                            {% if perms.accounts.fila_autorizar_recepcao and agendamento.status == "CONFIRMADO" %}
+                                {% comment %}
+                                    Pré-autorizar (encaminha pro financeiro) ou autorizar direto (convênio,
+                                    sem pagamento na hora) — exclusivo de quem tem 'fila_autorizar_recepcao'.
+                                    Particular só tem a opção de encaminhar; convênio com "permite pagamento
+                                    na hora" tem as duas opções (a recepção decide na hora); convênio
+                                    normal só tem a opção de autorizar direto.
+                                {% endcomment %}
+                                {% if agendamento.forma_atendimento == "PARTICULAR" %}
+                                    <form method="post" action="{% url 'agenda:agendamento_mudar_status' agendamento.pk 'PRE_AUTORIZADO' %}" style="display:inline-flex;gap:4px;">
+                                        {% comment %}
+                                            Pacote já pago e retorno grátis (automático ou do sistema antigo) não têm
+                                            cobrança: o mesmo botão autoriza direto, sem a fila do financeiro (ver
+                                            agendamento_mudar_status — mesma ordem: pacote primeiro). O texto do botão
+                                            diz isso desde 06/11/2026 (antes o pacote aparecia como "Encaminhar para
+                                            pagamento" e confundia a recepção). Pacote do sistema antigo ainda a pagar
+                                            continua indo ao financeiro.
+                                        {% endcomment %}
+                                        {% csrf_token %}{% include "agenda/_select_prioridade.html" %}<button type="submit" class="botao-mini">{% if agendamento.coberto_por_pacote and not agendamento.usa_pacote_a_pagar %}Autorizar (pacote já pago){% elif agendamento.so_retorno_gratis %}Autorizar (retorno, sem cobrança){% else %}Encaminhar para pagamento{% endif %}</button>
+                                    </form>
+                                {% elif agendamento.convenio.permite_pagamento_na_hora %}
+                                    <form method="post" action="{% url 'agenda:agendamento_mudar_status' agendamento.pk 'PRE_AUTORIZADO' %}" style="display:inline-flex;gap:4px;">
+                                        {% csrf_token %}{% include "agenda/_select_prioridade.html" %}<button type="submit" class="botao-mini">Encaminhar para pagamento (na hora)</button>
+                                    </form>
+                                    <a href="{% url 'agenda:agendamento_autorizar' agendamento.pk %}?proximo={{ request.get_full_path|urlencode }}" class="botao-mini" style="text-decoration:none;">Autorizar (faturar pelo convênio)</a>
+                                {% else %}
+                                    <a href="{% url 'agenda:agendamento_autorizar' agendamento.pk %}?proximo={{ request.get_full_path|urlencode }}" class="botao-mini" style="text-decoration:none;">Autorizar</a>
+                                {% endif %}
+                            {% endif %}
+                            {% if agendamento.status == "PRE_AUTORIZADO" %}
+                                <span style="font-size:12px;color:var(--texto-suave);">aguardando pagamento no financeiro</span>
+                            {% endif %}
+                            {% if perms.accounts.fila_autorizar_recepcao and not agendamento.chamado_em %}{% if agendamento.status == "PRE_AUTORIZADO" or agendamento.status == "AUTORIZADO" %}
+                                {# Corrigir a prioridade esquecida/errada antes de o profissional chamar (29/10/2026). #}
+                                <form method="post" action="{% url 'agenda:agendamento_prioridade' agendamento.pk %}" style="display:inline-flex;gap:4px;">
+                                    {% csrf_token %}{% include "agenda/_select_prioridade.html" %}<button type="submit" class="botao-mini">Salvar prioridade</button>
+                                </form>
+                            {% endif %}{% endif %}
+                            {% if perms.accounts.atendimento_realizar %}
+                                {% comment %}
+                                    "Marcar como atendido"/"Desmarcar" — exclusivo de quem tem
+                                    'atendimento_realizar' (o profissional, ou o Administrador). A recepção
+                                    (agenda_editar) NÃO marca atendido sozinha, mesmo tendo acesso às outras
+                                    ações desta tela — é o profissional quem chama e atende o paciente (ver
+                                    mesma trava, agora também no back-end, em agenda.views.agendamento_mudar_status).
+                                    Pode errar o clique, por isso também dá pra desfazer.
+                                {% endcomment %}
+                                {% if agendamento.status == "AUTORIZADO" %}
+                                    <form method="post" action="{% url 'agenda:agendamento_mudar_status' agendamento.pk 'REALIZADO' %}" style="display:inline-flex;">
+                                        {% csrf_token %}<button type="submit" class="botao-mini">Marcar como atendido</button>
+                                    </form>
+                                {% elif agendamento.status == "REALIZADO" %}
+                                    <form method="post" action="{% url 'agenda:agendamento_mudar_status' agendamento.pk 'AUTORIZADO' %}" style="display:inline-flex;">
+                                        {% csrf_token %}<button type="submit" class="botao-mini">Desmarcar</button>
+                                    </form>
+                                {% endif %}
+                                {% if agendamento.status == "REALIZADO" and user.profissional_id and agendamento.paciente.ativo %}
+                                    <a href="{% url 'prontuario:entrada_nova' agendamento.pk %}" class="botao-mini" style="text-decoration:none;">+ Registro no prontuário</a>
+                                    <a href="{% url 'documentos:atestado_novo' agendamento.pk %}" class="botao-mini" style="text-decoration:none;">Emitir atestado</a>
+                                    <a href="{% url 'documentos:receituario_novo' agendamento.pk %}" class="botao-mini" style="text-decoration:none;">Emitir receituário</a>
+                                {% endif %}
+                            {% endif %}
+                            {% if perms.accounts.agenda_editar %}
+                                <span style="display:flex;gap:6px;align-items:center;">
+                                    <a href="{% url 'agenda:agendamento_editar' agendamento.pk %}">Editar</a>
+                                    {# Na agenda só se cancela o que ainda não foi autorizado — o autorizado é em Autorizações (23/10/2026). #}
+                                    {% if agendamento.status != "AUTORIZADO" and agendamento.status != "REALIZADO" %}
+                                        <span>·</span>
+                                        <a href="{% url 'agenda:agendamento_cancelar' agendamento.pk %}">Cancelar</a>
+                                    {% endif %}
+                                </span>
+                            {% endif %}
+                        {% endif %}
+                        </div>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="8"><em>Nenhum agendamento neste dia{% if profissional_selecionado %} para este profissional{% endif %}.</em></td></tr>
+            {% endfor %}
+        </table>
+    {% endif %}
+{% endblock %}

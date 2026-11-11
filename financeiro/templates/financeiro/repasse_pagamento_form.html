@@ -1,0 +1,60 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Registrar pagamento de repasse — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <h2>Registrar pagamento de repasse — {{ profissional.nome }}</h2>
+    <p style="font-size:13px;color:var(--texto-suave);">
+        Informe quanto foi entregue ao profissional agora. Pode ser só uma parte do saldo: o valor é abatido
+        dos atendimentos mais antigos primeiro, e o que sobrar continua pendente para um próximo pagamento.
+    </p>
+
+    <h3 style="margin:16px 0 6px;">Saldo pendente: R$ {{ saldo }}</h3>
+    {% if pendentes %}
+        <table>
+            <tr>
+                <th>Data</th>
+                <th>Paciente</th>
+                <th>Forma de pagamento</th>
+                <th>Valor líquido</th>
+                <th>Já pago</th>
+                <th>Saldo</th>
+            </tr>
+            {% for item in pendentes %}
+                <tr>
+                    <td>{{ item.agendamento.data_hora_inicio|date:"d/m/Y" }}</td>
+                    <td>{{ item.agendamento.paciente.nome_completo }}</td>
+                    <td>{{ item.get_forma_pagamento_display }}</td>
+                    <td>R$ {{ item.valor_liquido }}</td>
+                    <td>{% if item.repasse_valor_pago %}R$ {{ item.repasse_valor_pago }}{% else %}—{% endif %}</td>
+                    <td><strong>R$ {{ item.saldo }}</strong></td>
+                </tr>
+            {% endfor %}
+        </table>
+    {% else %}
+        <p><em>Este profissional não tem repasse particular pendente.</em></p>
+    {% endif %}
+
+    {% if saldo %}
+        <form method="post" style="margin-top:20px;max-width:520px;">
+            {% csrf_token %}
+            <input type="hidden" name="voltar_url" value="{{ voltar_url }}">
+            {% for campo in form %}
+                <div class="campo-bloco">
+                    {{ campo.label_tag }}
+                    {{ campo }}
+                    {% if campo.help_text %}<div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">{{ campo.help_text }}</div>{% endif %}
+                    {% for erro in campo.errors %}
+                        <div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+            {% for erro in form.non_field_errors %}
+                <div class="mensagem error">{{ erro }}</div>
+            {% endfor %}
+            <button type="submit" class="botao">Registrar pagamento</button>
+            <a href="{{ voltar_url }}" style="margin-left:12px;">Cancelar</a>
+        </form>
+    {% else %}
+        <a href="{{ voltar_url }}">Voltar</a>
+    {% endif %}
+{% endblock %}

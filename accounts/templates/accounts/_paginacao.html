@@ -1,0 +1,11 @@
+{% if pagina.has_other_pages %}
+    <div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        {% if pagina.has_previous %}
+            <a href="?{% if pagina.qs_base %}{{ pagina.qs_base }}&{% endif %}pagina={{ pagina.previous_page_number }}">« Anterior</a>
+        {% endif %}
+        <span>Página {{ pagina.number }} de {{ pagina.paginator.num_pages }} ({{ pagina.paginator.count }} registros)</span>
+        {% if pagina.has_next %}
+            <a href="?{% if pagina.qs_base %}{{ pagina.qs_base }}&{% endif %}pagina={{ pagina.next_page_number }}">Próxima »</a>
+        {% endif %}
+    </div>
+{% endif %}

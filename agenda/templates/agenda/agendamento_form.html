@@ -1,0 +1,857 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}{{ titulo }} — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <h2>{{ titulo }}</h2>
+    {% if form.instance.pk and form.instance.criado_por %}
+        <p style="font-size:12px;color:var(--texto-suave);margin:-8px 0 12px;">
+            Agendado por {{ form.instance.criado_por.get_full_name|default:form.instance.criado_por.username }}
+            em {{ form.instance.criado_em|date:"d/m/Y \à\s H:i" }}.
+        </p>
+    {% endif %}
+    {% if repetindo %}
+        <div class="mensagem info" style="margin-bottom:12px;">
+            Dados puxados do seu último agendamento ({{ repetindo.paciente.nome_completo }} —
+            {{ repetindo.profissional.nome }}, {{ repetindo.itens_resumo }}). Falta escolher o paciente — confira o resto antes de salvar.
+        </div>
+    {% elif ultimo_agendamento %}
+        <p style="margin:-4px 0 12px;">
+            <a href="{{ url_repetir_ultimo }}" class="botao" style="text-decoration:none;display:inline-block;"
+               title="Puxa profissional, forma de atendimento, convênio e procedimentos do último agendamento que você marcou">
+                ↻ Repetir último agendamento ({{ ultimo_agendamento.profissional.nome }} · {{ ultimo_agendamento.itens_resumo }})
+            </a>
+        </p>
+    {% endif %}
+    <form method="post">
+        {% csrf_token %}
+
+        {% if erros_resumo %}
+            {# Resumo no topo (23/10/2026): o aviso ao lado do campo podia ficar fora da tela ou escondido. #}
+            <div class="mensagem error" id="resumo-erros" role="alert" tabindex="-1">
+                <strong>Não foi possível salvar — corrija e clique em Salvar de novo:</strong>
+                <ul style="margin:6px 0 0 18px;padding:0;">
+                    {% for erro in erros_resumo %}<li>{{ erro }}</li>{% endfor %}
+                </ul>
+            </div>
+            <script>document.addEventListener("DOMContentLoaded", function () { var r = document.getElementById("resumo-erros"); if (r) { r.scrollIntoView({block: "start"}); r.focus(); } });</script>
+        {% endif %}
+
+        <div class="campo-bloco">
+            {{ form.paciente.label_tag }}
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <div style="position:relative;min-width:280px;">
+                    <input type="text" id="busca-paciente" class="campo" autocomplete="off" style="display:none;width:100%;"
+                           placeholder="Digite o nome ou CPF do paciente já cadastrado...">
+                    <div id="sugestoes-paciente" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:20;
+                         background:var(--bg-cartao,#ffffff);border:1px solid var(--borda,#dfe3ea);border-radius:6px;
+                         max-height:220px;overflow-y:auto;margin-top:2px;"></div>
+                </div>
+                {{ form.paciente }}
+                {% if perms.accounts.paciente_cadastrar %}
+                    <a href="#" id="link-novo-paciente" style="white-space:nowrap;font-size:13px;">+ Cadastrar paciente</a>
+                {% endif %}
+            </div>
+            {% for erro in form.paciente.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+        </div>
+
+        <div class="campo-bloco">
+            {{ form.profissional.label_tag }}
+            {{ form.profissional }}
+            {% for erro in form.profissional.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+        </div>
+
+        <div class="campo-bloco" id="bloco-especialidade-atendimento" style="display:none;">
+            {{ form.especialidade.label_tag }}
+            {{ form.especialidade }}
+            {% if form.especialidade.help_text %}<div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">{{ form.especialidade.help_text }}</div>{% endif %}
+            {% for erro in form.especialidade.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+            <div id="bloco-especialidade-outra-atendimento" style="display:none;margin-top:8px;">
+                {{ form.especialidade_outra.label_tag }}
+                {{ form.especialidade_outra }}
+            </div>
+            {% for erro in form.especialidade_outra.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+        </div>
+
+        <div class="campo-bloco">
+            {{ form.forma_atendimento.label_tag }}
+            {{ form.forma_atendimento }}
+            <div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">
+                A opção "Convênio" só fica disponível quando o profissional escolhido atende algum convênio
+                (Cadastros → Profissionais → "convênios que atende").
+            </div>
+            {% for erro in form.forma_atendimento.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+        </div>
+
+        <div class="campo-bloco" id="bloco-convenio">
+            {{ form.convenio.label_tag }}
+            {{ form.convenio }}
+            <div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">{{ form.convenio.help_text }}</div>
+            {% for erro in form.convenio.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+        </div>
+
+        <div class="campo-bloco">
+            <label>Procedimentos</label>
+            <div style="font-size:12px;color:var(--texto-suave);margin-bottom:8px;">
+                A lista mostra só os procedimentos habilitados para o profissional selecionado, e que
+                já têm valor cadastrado (particular, ou na Tabela de Preços do convênio escolhido).
+                Adicione mais de uma linha para agendar mais de um procedimento no mesmo horário
+                (ex.: Consulta + Eletrocardiograma).
+                <br>Sessão por convênio: a quantidade é calculada pela duração — cada 30 minutos é uma sessão/guia
+                (1h = 2 guias; a 2ª é autorizada depois, em Agenda → Guias pendentes).
+            </div>
+            <div id="aviso-sem-procedimentos" class="mensagem error" style="display:none;margin-bottom:8px;">
+                Este profissional ainda não tem nenhum procedimento vinculado — vincule em
+                Cadastros → Procedimentos ('profissionais habilitados') antes de agendar.
+            </div>
+            {{ formset.management_form }}
+            {% if formset.non_form_errors %}
+                {% for erro in formset.non_form_errors %}
+                    <div class="mensagem error" style="margin-bottom:6px;">{{ erro }}</div>
+                {% endfor %}
+            {% endif %}
+            <div id="itens-formset">
+                {% for item_form in formset %}
+                    <div class="linha-item-agendamento" style="display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;padding:10px;border:1px solid var(--borda);border-radius:8px;flex-wrap:wrap;">
+                        {{ item_form.id }}
+                        <div style="flex:2;min-width:200px;">
+                            {{ item_form.procedimento }}
+                            {% for erro in item_form.procedimento.errors %}<div class="mensagem error" style="margin-top:4px;">{{ erro }}</div>{% endfor %}
+                        </div>
+                        <div style="width:110px;">
+                            {{ item_form.quantidade }}
+                            {% for erro in item_form.quantidade.errors %}<div class="mensagem error" style="margin-top:4px;">{{ erro }}</div>{% endfor %}
+                        </div>
+                        <div style="display:none;">{{ item_form.DELETE }}</div>
+                        <button type="button" class="botao-remover-item" style="white-space:nowrap;">Remover</button>
+                        {% for erro in item_form.non_field_errors %}<div class="mensagem error" style="margin-top:4px;flex-basis:100%;">{{ erro }}</div>{% endfor %}
+                    </div>
+                {% endfor %}
+            </div>
+            <button type="button" id="botao-add-item" class="botao" style="margin-top:4px;">+ Adicionar procedimento</button>
+
+            <div id="template-item-vazio" style="display:none;">
+                <div class="linha-item-agendamento" style="display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;padding:10px;border:1px solid var(--borda);border-radius:8px;flex-wrap:wrap;">
+                    {{ formset.empty_form.id }}
+                    <div style="flex:2;min-width:200px;">{{ formset.empty_form.procedimento }}</div>
+                    <div style="width:110px;">{{ formset.empty_form.quantidade }}</div>
+                    <button type="button" class="botao-remover-item" style="white-space:nowrap;">Remover</button>
+                </div>
+            </div>
+        </div>
+
+        {% if form.data.field.widget.input_type == "hidden" %}
+            <div class="campo-bloco">
+                <strong>Data do agendamento:</strong> {{ form.data.value|date:"d/m/Y" }}
+                (selecionada na Agenda do dia — <a href="{{ voltar_url }}">trocar o dia</a>)
+                {{ form.data }}
+            </div>
+        {% else %}
+            <div class="campo-bloco">
+                {{ form.data.label_tag }}
+                {{ form.data }}
+                {% for erro in form.data.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+            </div>
+        {% endif %}
+
+        {# Só sessão tem hora marcada e duração — consulta/exame são agendados por TURNO e #}
+        {# atendidos na ordem de agendamento (pedido da clínica, 13/10/2026). O JavaScript #}
+        {# abaixo mostra só os campos do caso, conforme os procedimentos escolhidos. #}
+        <div class="campo-bloco" id="bloco-turno">
+            {{ form.turno.label_tag }}
+            {{ form.turno }}
+            {% for erro in form.turno.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+            <div id="aviso-sem-duracao" style="font-size:12px;color:var(--texto-suave);margin-top:4px;">
+                Consulta/exame não tem hora marcada: o paciente entra na lista do turno e é atendido na ordem de agendamento.
+            </div>
+        </div>
+
+        <div class="campo-bloco" id="bloco-hora">
+            {{ form.hora_inicio.label_tag }}
+            {{ form.hora_inicio }}
+            {% for erro in form.hora_inicio.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+        </div>
+
+        <div class="campo-bloco" id="bloco-duracao">
+            {{ form.duracao_minutos.label_tag }}
+            {{ form.duracao_minutos }}
+            {% for erro in form.duracao_minutos.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+        </div>
+
+        <div class="campo-bloco" style="display:flex;align-items:center;gap:8px;">
+            {{ form.encaixe }}
+            {{ form.encaixe.label_tag }}
+            {% if form.encaixe.help_text %}
+                <span style="font-size:12px;color:var(--texto-suave);">{{ form.encaixe.help_text }}</span>
+            {% endif %}
+            {% for erro in form.encaixe.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+        </div>
+
+        {# Provisório (2026-10-16): retorno de consulta autorizada no sistema antigo — ver AgendamentoItem.retorno_manual. #}
+        <div class="campo-bloco" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            {{ form.retorno_sistema_antigo }}
+            {{ form.retorno_sistema_antigo.label_tag }}
+            <span style="font-size:12px;color:var(--texto-suave);">{{ form.retorno_sistema_antigo.help_text }}</span>
+        </div>
+
+        <div class="campo-bloco">
+            {{ form.observacoes.label_tag }}
+            {{ form.observacoes }}
+            <div id="aviso-encaixe-observacao" style="display:none;font-size:12px;color:#c0392b;margin-top:4px;">
+                Encaixe precisa de uma observação explicando o motivo da exceção de horário.
+            </div>
+            {% for erro in form.observacoes.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+        </div>
+
+        {% if form.repetir_semanalmente %}
+            <fieldset id="fieldset-repeticao" style="display:none;border:1px solid var(--borda);border-radius:8px;padding:12px 16px;margin:16px 0;">
+                <legend style="padding:0 6px;font-weight:600;">Sessões recorrentes (opcional)</legend>
+                <div style="font-size:12px;color:var(--texto-suave);margin-bottom:8px;">
+                    Disponível só para procedimentos do tipo "sessão" (fono, fisioterapia, psicologia...).
+                    Consulta não aparece aqui, pois não se repete automaticamente.
+                </div>
+                <div class="campo-bloco" style="display:flex;align-items:center;gap:8px;">
+                    {{ form.repetir_semanalmente }}
+                    {{ form.repetir_semanalmente.label_tag }}
+                </div>
+                <div class="campo-bloco">
+                    {{ form.quantidade_sessoes.label_tag }}
+                    {{ form.quantidade_sessoes }}
+                    {% if form.quantidade_sessoes.help_text %}
+                        <div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">{{ form.quantidade_sessoes.help_text }}</div>
+                    {% endif %}
+                    {% for erro in form.quantidade_sessoes.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+                </div>
+
+                <div class="campo-bloco" style="display:flex;align-items:center;gap:8px;">
+                    {{ form.tem_segundo_dia }}
+                    {{ form.tem_segundo_dia.label_tag }}
+                    {% for erro in form.tem_segundo_dia.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+                </div>
+                <div id="bloco-segundo-dia" style="display:none;padding-left:8px;border-left:3px solid var(--borda);">
+                    <div class="campo-bloco">
+                        {{ form.segundo_dia_semana.label_tag }}
+                        {{ form.segundo_dia_semana }}
+                        {% for erro in form.segundo_dia_semana.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+                    </div>
+                    <div class="campo-bloco">
+                        {{ form.segundo_horario.label_tag }}
+                        {{ form.segundo_horario }}
+                        {% for erro in form.segundo_horario.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+                    </div>
+                    <div class="campo-bloco">
+                        {{ form.segundo_duracao_minutos.label_tag }}
+                        {{ form.segundo_duracao_minutos }}
+                        <div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">
+                            Deixe em branco para usar a mesma duração da sessão principal.
+                        </div>
+                        {% for erro in form.segundo_duracao_minutos.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+                    </div>
+                </div>
+            </fieldset>
+        {% endif %}
+
+        <button type="submit" class="botao">Salvar</button>
+        <a href="{{ voltar_url }}" style="margin-left:12px;">Cancelar</a>
+    </form>
+
+    <script>
+        (function () {
+            var selectProfissional = document.getElementById("id_profissional");
+            var contentorItens = document.getElementById("itens-formset");
+            var templateVazio = document.getElementById("template-item-vazio");
+            var totalFormsInput = document.getElementById("id_itens-TOTAL_FORMS");
+            var initialFormsInput = document.getElementById("id_itens-INITIAL_FORMS");
+            var fieldsetRepeticao = document.getElementById("fieldset-repeticao");
+            var blocoDuracao = document.getElementById("bloco-duracao");
+            var blocoHora = document.getElementById("bloco-hora");
+            var blocoTurno = document.getElementById("bloco-turno");
+            var checkRepetir = document.getElementById("id_repetir_semanalmente");
+            var checkSegundoDia = document.getElementById("id_tem_segundo_dia");
+            var blocoSegundoDia = document.getElementById("bloco-segundo-dia");
+            var blocoEspecialidade = document.getElementById("bloco-especialidade-atendimento");
+            var selectEspecialidade = document.getElementById("id_especialidade");
+            var blocoEspecialidadeOutra = document.getElementById("bloco-especialidade-outra-atendimento");
+            var campoEspecialidadeOutra = document.getElementById("id_especialidade_outra");
+
+            function alternarBlocoEspecialidadeOutra() {
+                if (blocoEspecialidadeOutra && selectEspecialidade) {
+                    blocoEspecialidadeOutra.style.display = selectEspecialidade.value === "outra" ? "block" : "none";
+                }
+            }
+
+            // Só mostra (e só aí passa a exigir) a escolha de "especialidade deste
+            // atendimento" quando o profissional selecionado tiver 2+ especialidades
+            // cadastradas (ver cadastros.models.Profissional.especialidades_pares) — com 0
+            // ou 1, o campo fica escondido e o valor é preenchido sozinho no servidor (ver
+            // AgendamentoForm.clean()/Agendamento.save()), sem perguntar nada aqui. Cada
+            // <option> carrega o texto de "outra" (se houver) em data-outra — necessário
+            // porque um mesmo profissional pode ter mais de uma especialidade "outra" com
+            // texto livre diferente (mesmo value="outra" nas duas, diferenciadas só pelo rótulo).
+            function atualizarBlocoEspecialidade(especialidades) {
+                if (!blocoEspecialidade || !selectEspecialidade) { return; }
+                if (!especialidades || especialidades.length <= 1) {
+                    blocoEspecialidade.style.display = "none";
+                    return;
+                }
+                var valorAnterior = selectEspecialidade.value;
+                var outraAnterior = campoEspecialidadeOutra ? campoEspecialidadeOutra.value : "";
+                selectEspecialidade.innerHTML = "";
+                var opcaoVazia = document.createElement("option");
+                opcaoVazia.value = "";
+                opcaoVazia.textContent = "---------";
+                selectEspecialidade.appendChild(opcaoVazia);
+                especialidades.forEach(function (especialidade) {
+                    var partes = especialidade.chave.split("|");
+                    var opcao = document.createElement("option");
+                    opcao.value = partes[0];
+                    opcao.dataset.outra = partes[1] || "";
+                    opcao.textContent = especialidade.rotulo;
+                    if (partes[0] === valorAnterior && partes[1] === outraAnterior) {
+                        opcao.selected = true;
+                    }
+                    selectEspecialidade.appendChild(opcao);
+                });
+                blocoEspecialidade.style.display = "block";
+                alternarBlocoEspecialidadeOutra();
+            }
+
+            if (selectEspecialidade) {
+                selectEspecialidade.addEventListener("change", function () {
+                    var opcaoSelecionada = selectEspecialidade.options[selectEspecialidade.selectedIndex];
+                    if (campoEspecialidadeOutra && opcaoSelecionada) {
+                        campoEspecialidadeOutra.value = opcaoSelecionada.dataset.outra || "";
+                    }
+                    alternarBlocoEspecialidadeOutra();
+                });
+            }
+
+            function alternarBlocoSegundoDia() {
+                if (blocoSegundoDia && checkSegundoDia) {
+                    blocoSegundoDia.style.display = checkSegundoDia.checked ? "block" : "none";
+                }
+            }
+
+            // Só as linhas ainda visíveis (não removidas) contam pra decisão de mostrar o
+            // bloco de "sessões recorrentes" e pro fetch de procedimentos ao trocar
+            // profissional/forma de atendimento.
+            function selectsProcedimentoVisiveis() {
+                return Array.prototype.filter.call(
+                    document.querySelectorAll("select[name$='-procedimento']"),
+                    function (select) {
+                        // Exclui o <select> do template escondido (formset.empty_form, usado só
+                        // como molde pra clonar linhas novas) — o "display:none" dele fica no avô
+                        // (#template-item-vazio), não na própria .linha-item-agendamento, então
+                        // essa checagem precisa ser explícita.
+                        if (select.closest("#template-item-vazio")) { return false; }
+                        var linha = select.closest(".linha-item-agendamento");
+                        return !linha || linha.style.display !== "none";
+                    }
+                );
+            }
+
+            // Só mostra o bloco de "sessões recorrentes" quando TODOS os procedimentos
+            // escolhidos (linhas visíveis) são do tipo sessão (permite_repeticao_semanal=True
+            // lá no cadastro de Procedimentos) — a série semanal copia o conjunto inteiro de
+            // itens pra cada sessão gerada, então um só item "consulta" no meio já barra.
+            // Horário + duração só aparecem quando há pelo menos um procedimento do tipo sessão
+            // escolhido; sem sessão, aparece o Turno (mesmo critério de
+            // AgendamentoItemFormSet.clean() no servidor).
+            function atualizarBlocoDuracao() {
+                if (!blocoDuracao) { return; }
+                var algumaSessao = false;
+                selectsProcedimentoVisiveis().forEach(function (select) {
+                    var opcao = select.options[select.selectedIndex];
+                    if (opcao && opcao.value && opcao.dataset.repete === "1") { algumaSessao = true; }
+                });
+                blocoDuracao.style.display = algumaSessao ? "" : "none";
+                if (blocoHora) { blocoHora.style.display = algumaSessao ? "" : "none"; }
+                if (blocoTurno) { blocoTurno.style.display = algumaSessao ? "none" : ""; }
+            }
+
+            function atualizarBlocoRepeticao() {
+                atualizarBlocoDuracao();
+                if (!fieldsetRepeticao) { return; }
+                var algumEscolhido = false;
+                var todosPermitem = true;
+                selectsProcedimentoVisiveis().forEach(function (select) {
+                    var opcao = select.options[select.selectedIndex];
+                    if (opcao && opcao.value) {
+                        algumEscolhido = true;
+                        if (opcao.dataset.repete !== "1") { todosPermitem = false; }
+                    }
+                });
+                var permite = algumEscolhido && todosPermitem;
+                fieldsetRepeticao.style.display = permite ? "block" : "none";
+                if (!permite) {
+                    if (checkRepetir) { checkRepetir.checked = false; }
+                    if (checkSegundoDia) { checkSegundoDia.checked = false; alternarBlocoSegundoDia(); }
+                }
+            }
+
+            // A lista de procedimentos depende também da forma de atendimento (e, se for
+            // convênio, de QUAL convênio — o escolhido em "Convênio", ver atualizarConvenios
+            // mais abaixo): só entra na
+            // lista quem tem preço cadastrado (mesma trava aplicada no servidor em
+            // AgendamentoItemFormSet.clean(), pra quem desabilitar o JavaScript não contornar).
+            function popularSelectProcedimento(select) {
+                if (!selectProfissional || !select) { return; }
+                var profissionalId = selectProfissional.value;
+                if (!profissionalId) { return; }
+
+                var elFormaAtendimento = document.getElementById("id_forma_atendimento");
+                var elConvenio = document.getElementById("id_convenio");
+                var formaAtendimento = elFormaAtendimento ? elFormaAtendimento.value : "";
+                var params = new URLSearchParams();
+                if (formaAtendimento) { params.set("forma_atendimento", formaAtendimento); }
+                if (formaAtendimento === "CONVENIO" && elConvenio && elConvenio.value) {
+                    params.set("convenio", elConvenio.value);
+                }
+
+                fetch("/agenda/api/profissionais/" + profissionalId + "/procedimentos/?" + params.toString())
+                    .then(function (resposta) { return resposta.json(); })
+                    .then(function (dados) {
+                        // Lido só agora (não antes do fetch) pra não descartar uma escolha feita
+                        // enquanto a requisição ainda estava em andamento — capturar o valor antes
+                        // do fetch fazia a seleção que a pessoa acabasse de fazer numa linha recém
+                        // adicionada ser silenciosamente revertida pra "---------" assim que a
+                        // resposta chegasse, e o servidor barrava o envio como campo obrigatório
+                        // (bug relatado pelo cliente em 28/07/2026).
+                        var valorAnterior = select.value;
+                        select.innerHTML = "";
+
+                        var opcaoVazia = document.createElement("option");
+                        opcaoVazia.value = "";
+                        opcaoVazia.textContent = "---------";
+                        select.appendChild(opcaoVazia);
+
+                        dados.procedimentos.forEach(function (procedimento) {
+                            var opcao = document.createElement("option");
+                            opcao.value = procedimento.id;
+                            opcao.textContent = procedimento.nome;
+                            opcao.dataset.repete = procedimento.permite_repeticao_semanal ? "1" : "0";
+                            if (String(procedimento.id) === String(valorAnterior)) {
+                                opcao.selected = true;
+                            }
+                            select.appendChild(opcao);
+                        });
+                        var avisoSemProcedimentos = document.getElementById("aviso-sem-procedimentos");
+                        if (avisoSemProcedimentos) {
+                            avisoSemProcedimentos.style.display = dados.sem_vinculo ? "block" : "none";
+                        }
+                        atualizarBlocoRepeticao();
+                        atualizarBlocoEspecialidade(dados.especialidades);
+                    });
+            }
+
+            function popularTodosProcedimentos() {
+                selectsProcedimentoVisiveis().forEach(popularSelectProcedimento);
+            }
+
+            // Remover uma linha de item: se ela já existe no banco (tem um "-id" preenchido,
+            // ou seja, é um AgendamentoItem já salvo ao editar um agendamento existente), marca
+            // a checkbox DELETE (escondida) e só esconde a linha — é assim que o Django sabe
+            // excluir aquele item ao salvar. Se é uma linha nova (adicionada agora mesmo pelo
+            // botão "+ Adicionar procedimento", nunca salva), remove a linha de vez — mas aí
+            // TOTAL_FORMS precisa ser corrigido (ver reindexarLinhasNovas): deixar TOTAL_FORMS
+            // "furado" faz o Django continuar esperando os campos daquele índice, que não
+            // existem em lugar nenhum do POST, e barrar o envio com "Este campo é obrigatório"
+            // numa linha que nem aparece mais na tela (bug relatado pelo cliente em 28/07/2026 —
+            // "removi o procedimento e continua pedindo campo obrigatório").
+            function removerLinha(botao) {
+                var linha = botao.closest(".linha-item-agendamento");
+                if (!linha) { return; }
+                var campoId = linha.querySelector("input[name$='-id']");
+                if (campoId && campoId.value) {
+                    var checkboxDelete = linha.querySelector("input[name$='-DELETE']");
+                    if (checkboxDelete) { checkboxDelete.checked = true; }
+                    linha.style.display = "none";
+                } else {
+                    linha.remove();
+                    reindexarLinhasNovas();
+                }
+                atualizarBlocoRepeticao();
+            }
+
+            // Depois de remover do DOM uma linha nova (nunca salva), renumera as linhas novas
+            // restantes pra ficarem sem buraco nos índices (0, 1, 2... a partir de
+            // INITIAL_FORMS) e ajusta TOTAL_FORMS pro novo total — as linhas já existentes
+            // (salvas no banco) nunca são tocadas aqui, só as adicionadas via JavaScript, que
+            // sempre ficam depois delas no DOM (mesma ordem em que o Django renderiza: primeiro
+            // as iniciais, depois as extras).
+            function reindexarLinhasNovas() {
+                if (!initialFormsInput || !totalFormsInput || !contentorItens) { return; }
+                var inicial = parseInt(initialFormsInput.value, 10);
+                var todasLinhas = contentorItens.querySelectorAll(".linha-item-agendamento");
+                for (var indiceNovo = inicial; indiceNovo < todasLinhas.length; indiceNovo++) {
+                    var linha = todasLinhas[indiceNovo];
+                    var campoQualquer = linha.querySelector("[name^='itens-']");
+                    if (!campoQualquer) { continue; }
+                    var indiceAtual = campoQualquer.name.split("-")[1];
+                    if (indiceAtual !== String(indiceNovo)) {
+                        renomearCamposDaLinha(linha, indiceAtual, indiceNovo);
+                    }
+                }
+                totalFormsInput.value = String(todasLinhas.length);
+            }
+
+            function renomearCamposDaLinha(linha, indiceAntigo, indiceNovo) {
+                var prefixoAntigo = "itens-" + indiceAntigo + "-";
+                var prefixoNovo = "itens-" + indiceNovo + "-";
+                linha.querySelectorAll("[name^='" + prefixoAntigo + "']").forEach(function (campo) {
+                    campo.name = prefixoNovo + campo.name.slice(prefixoAntigo.length);
+                    if (campo.id) {
+                        campo.id = "id_" + prefixoNovo + campo.id.slice(("id_" + prefixoAntigo).length);
+                    }
+                });
+            }
+
+            function adicionarLinhaItem() {
+                if (!templateVazio || !contentorItens || !totalFormsInput) { return; }
+                var indice = parseInt(totalFormsInput.value, 10);
+                var wrapperTemporario = document.createElement("div");
+                wrapperTemporario.innerHTML = templateVazio.innerHTML.split("__prefix__").join(String(indice));
+                var novaLinha = wrapperTemporario.firstElementChild;
+                contentorItens.appendChild(novaLinha);
+                totalFormsInput.value = String(indice + 1);
+                popularSelectProcedimento(novaLinha.querySelector("select[name$='-procedimento']"));
+            }
+
+            var botaoAddItem = document.getElementById("botao-add-item");
+            if (botaoAddItem) {
+                botaoAddItem.addEventListener("click", adicionarLinhaItem);
+            }
+            if (contentorItens) {
+                // Delegação de evento: cobre tanto as linhas já renderizadas pelo servidor
+                // quanto as adicionadas depois via JS, sem precisar religar listener por linha.
+                contentorItens.addEventListener("change", function (evento) {
+                    if (evento.target.matches("select[name$='-procedimento']")) {
+                        atualizarBlocoRepeticao();
+                    }
+                });
+                contentorItens.addEventListener("click", function (evento) {
+                    if (evento.target.matches(".botao-remover-item")) {
+                        removerLinha(evento.target);
+                    }
+                });
+            }
+
+            if (!selectProfissional || !selectProfissional.value) {
+                atualizarBlocoDuracao();
+            }
+
+            // "+ Cadastrar paciente": abre em uma janela pop-up e, quando o
+            // paciente é salvo, a própria janela avisa esta página (via
+            // postMessage) e já deixa o paciente selecionado — sem perder
+            // nada que já foi preenchido aqui no formulário de agendamento.
+            var linkNovoPaciente = document.getElementById("link-novo-paciente");
+            if (linkNovoPaciente) {
+                linkNovoPaciente.addEventListener("click", function (evento) {
+                    evento.preventDefault();
+                    window.open(
+                        "{% url 'cadastros:paciente_novo' %}?popup=1",
+                        "popupNovoPaciente",
+                        "width=680,height=760,resizable=yes,scrollbars=yes"
+                    );
+                });
+            }
+            window.addEventListener("message", function (evento) {
+                if (evento.data && evento.data.tipo === "paciente_criado") {
+                    var selectPaciente = document.getElementById("id_paciente");
+                    var opcao = document.createElement("option");
+                    opcao.value = evento.data.id;
+                    opcao.textContent = evento.data.nome;
+                    opcao.selected = true;
+                    selectPaciente.appendChild(opcao);
+                    // Atualiza a caixa de busca (ver mais abaixo) e dispara "change"
+                    // pra reaproveitar a lógica de "forma de atendimento".
+                    if (typeof sincronizarBuscaComSelectPaciente === "function") {
+                        sincronizarBuscaComSelectPaciente();
+                    }
+                    selectPaciente.dispatchEvent(new Event("change"));
+                }
+            });
+
+            // Campo de busca por nome do paciente — o <select> original (ver
+            // SelectComConvenioPaciente em agenda/forms.py) continua sendo o
+            // campo "de verdade" enviado no POST; aqui só acrescentamos, por
+            // cima dele, uma caixa de texto com uma lista de sugestões própria
+            // (não depende do <datalist> nativo do navegador, que mostrou-se
+            // pouco confiável com o tema escuro e não filtra por qualquer
+            // trecho do nome em todo navegador) pra achar o paciente digitando
+            // parte do nome. Se o JavaScript não rodar por algum motivo, o
+            // <select> original continua visível e funcional (nada quebra).
+            var selectPacienteBusca = document.getElementById("id_paciente");
+            var buscaPaciente = document.getElementById("busca-paciente");
+            var sugestoesPaciente = document.getElementById("sugestoes-paciente");
+
+            // O <select> só traz o paciente já escolhido (são dezenas de milhares de
+            // pacientes desde a importação do sistema antigo — ver AgendamentoForm em
+            // agenda/forms.py); a lista de sugestões vem do servidor (agenda.views.
+            // buscar_pacientes), que já ignora acento/maiúscula e aceita CPF.
+            var urlBuscaPacientes = "{% url 'agenda:buscar_pacientes' %}";
+            var temporizadorBusca = null;
+            var numeroBusca = 0;
+
+            function esconderSugestoes() {
+                if (sugestoesPaciente) {
+                    sugestoesPaciente.style.display = "none";
+                    sugestoesPaciente.innerHTML = "";
+                }
+            }
+
+            function mensagemSugestoes(texto) {
+                sugestoesPaciente.innerHTML = "";
+                var aviso = document.createElement("div");
+                aviso.textContent = texto;
+                aviso.style.cssText = "padding:8px 10px;color:var(--texto-suave,#999);font-size:13px;";
+                sugestoesPaciente.appendChild(aviso);
+                sugestoesPaciente.style.display = "block";
+            }
+
+            function escolherPaciente(paciente) {
+                var opcao = null;
+                for (var i = 0; i < selectPacienteBusca.options.length; i++) {
+                    if (selectPacienteBusca.options[i].value === String(paciente.id)) {
+                        opcao = selectPacienteBusca.options[i];
+                        break;
+                    }
+                }
+                if (!opcao) {
+                    opcao = document.createElement("option");
+                    opcao.value = paciente.id;
+                    opcao.textContent = paciente.nome;
+                    if (paciente.convenio_id) {
+                        opcao.setAttribute("data-convenio-id", paciente.convenio_id);
+                        opcao.setAttribute("data-convenio-nome", paciente.convenio_nome);
+                    }
+                    selectPacienteBusca.appendChild(opcao);
+                }
+                selectPacienteBusca.value = String(paciente.id);
+                buscaPaciente.value = opcao.textContent;
+                selectPacienteBusca.dispatchEvent(new Event("change"));
+                esconderSugestoes();
+            }
+
+            function mostrarSugestoes(pacientes) {
+                sugestoesPaciente.innerHTML = "";
+                if (!pacientes.length) {
+                    mensagemSugestoes("Nenhum paciente encontrado com esse nome.");
+                    return;
+                }
+                pacientes.forEach(function (paciente) {
+                    var item = document.createElement("div");
+                    item.setAttribute("data-paciente-id", paciente.id);
+                    item.style.cssText = "padding:8px 10px;cursor:pointer;font-size:14px;";
+                    var nome = document.createElement("div");
+                    nome.textContent = paciente.nome;
+                    item.appendChild(nome);
+                    if (paciente.detalhes) {
+                        var detalhes = document.createElement("div");
+                        detalhes.textContent = paciente.detalhes;
+                        detalhes.style.cssText = "font-size:12px;color:var(--texto-suave,#999);";
+                        item.appendChild(detalhes);
+                    }
+                    item.addEventListener("mouseenter", function () { item.style.background = "var(--bg)"; });
+                    item.addEventListener("mouseleave", function () { item.style.background = "transparent"; });
+                    // mousedown (não click) pra disparar antes do "blur" do campo de texto.
+                    item.addEventListener("mousedown", function (evento) {
+                        evento.preventDefault();
+                        escolherPaciente(paciente);
+                    });
+                    item._paciente = paciente;
+                    sugestoesPaciente.appendChild(item);
+                });
+                sugestoesPaciente.style.display = "block";
+            }
+
+            function buscarPacientes(termo) {
+                if (!sugestoesPaciente) { return; }
+                clearTimeout(temporizadorBusca);
+                if (!termo.trim()) { esconderSugestoes(); return; }
+                temporizadorBusca = setTimeout(function () {
+                    // Só a resposta da busca mais recente é exibida (a pessoa pode ter
+                    // continuado digitando enquanto uma busca anterior ainda voltava).
+                    var esta = ++numeroBusca;
+                    mensagemSugestoes("Buscando...");
+                    fetch(urlBuscaPacientes + "?q=" + encodeURIComponent(termo))
+                        .then(function (resposta) { return resposta.json(); })
+                        .then(function (dados) {
+                            if (esta === numeroBusca && document.activeElement === buscaPaciente) {
+                                mostrarSugestoes(dados.pacientes);
+                            }
+                        })
+                        .catch(function () {
+                            if (esta === numeroBusca) { mensagemSugestoes("Não foi possível buscar agora — tente de novo."); }
+                        });
+                }, 250);
+            }
+
+            function sincronizarBuscaComSelectPaciente() {
+                if (!selectPacienteBusca || !buscaPaciente) { return; }
+                var opcaoAtual = selectPacienteBusca.options[selectPacienteBusca.selectedIndex];
+                buscaPaciente.value = opcaoAtual && opcaoAtual.value ? opcaoAtual.textContent : "";
+            }
+
+            if (selectPacienteBusca && buscaPaciente && sugestoesPaciente) {
+                sincronizarBuscaComSelectPaciente();
+                selectPacienteBusca.style.display = "none";
+                buscaPaciente.style.display = "";
+
+                buscaPaciente.addEventListener("input", function () {
+                    // Se o texto não bater mais com o paciente selecionado, limpa a
+                    // seleção — evita salvar um paciente "antigo" enquanto o usuário
+                    // já apagou o nome pra procurar outro.
+                    var opcaoAtual = selectPacienteBusca.options[selectPacienteBusca.selectedIndex];
+                    if (!opcaoAtual || opcaoAtual.textContent !== buscaPaciente.value) {
+                        selectPacienteBusca.value = "";
+                    }
+                    buscarPacientes(buscaPaciente.value);
+                });
+                buscaPaciente.addEventListener("focus", function () {
+                    if (buscaPaciente.value && !selectPacienteBusca.value) { buscarPacientes(buscaPaciente.value); }
+                });
+                buscaPaciente.addEventListener("blur", function () {
+                    // Pequeno atraso pra dar tempo do "mousedown" da sugestão rodar antes.
+                    setTimeout(esconderSugestoes, 150);
+                });
+                buscaPaciente.addEventListener("keydown", function (evento) {
+                    if (evento.key === "Escape") { esconderSugestoes(); }
+                    if (evento.key === "Enter") {
+                        var primeiro = sugestoesPaciente.querySelector("[data-paciente-id]");
+                        if (primeiro) {
+                            evento.preventDefault();
+                            escolherPaciente(primeiro._paciente);
+                        } else if (sugestoesPaciente.style.display !== "none") {
+                            // Busca ainda em andamento: não deixa o Enter enviar o formulário.
+                            evento.preventDefault();
+                        }
+                    }
+                });
+            }
+
+            // Mostra/esconde o bloco do "segundo dia da semana" conforme a
+            // caixinha correspondente é marcada.
+            if (checkSegundoDia && blocoSegundoDia) {
+                checkSegundoDia.addEventListener("change", alternarBlocoSegundoDia);
+                alternarBlocoSegundoDia();
+            }
+
+            // Convênios do PROFISSIONAL (pedido do cliente, 2026-10-14): a opção "Convênio" só
+            // fica disponível quando ele atende algum, e o select "Convênio" só lista os que ele
+            // atende e que têm preço para algum procedimento dele (ver
+            // agenda.views.procedimentos_do_profissional). O convênio do cadastro do paciente
+            // ('data-convenio-id' na opção de paciente) vem pré-selecionado quando está na lista.
+            var selectPacienteConvenio = document.getElementById("id_paciente");
+            var selectFormaAtendimento = document.getElementById("id_forma_atendimento");
+            var selectConvenio = document.getElementById("id_convenio");
+            var blocoConvenio = document.getElementById("bloco-convenio");
+
+            function convenioDoPaciente() {
+                if (!selectPacienteConvenio) { return null; }
+                var opcaoPaciente = selectPacienteConvenio.options[selectPacienteConvenio.selectedIndex];
+                return opcaoPaciente ? opcaoPaciente.getAttribute("data-convenio-id") : null;
+            }
+
+            function temOpcao(select, valor) {
+                return Array.prototype.some.call(select.options, function (o) { return o.value === String(valor); });
+            }
+
+            function atualizarBlocoConvenio() {
+                if (!blocoConvenio || !selectFormaAtendimento) { return; }
+                blocoConvenio.style.display = selectFormaAtendimento.value === "CONVENIO" ? "" : "none";
+            }
+
+            function preencherConvenios(convenios) {
+                if (!selectConvenio || !selectFormaAtendimento) { return; }
+                // Mantém a escolha atual (edição / POST com erro / troca de profissional) se ainda vale.
+                var valorAnterior = selectConvenio.value;
+                selectConvenio.innerHTML = "";
+                var opcaoVazia = document.createElement("option");
+                opcaoVazia.value = "";
+                opcaoVazia.textContent = "---------";
+                selectConvenio.appendChild(opcaoVazia);
+                convenios.forEach(function (convenio) {
+                    var opcao = document.createElement("option");
+                    opcao.value = convenio.id;
+                    opcao.textContent = convenio.nome;
+                    selectConvenio.appendChild(opcao);
+                });
+                var doPaciente = convenioDoPaciente();
+                if (valorAnterior && temOpcao(selectConvenio, valorAnterior)) {
+                    selectConvenio.value = valorAnterior;
+                } else if (doPaciente && temOpcao(selectConvenio, doPaciente)) {
+                    selectConvenio.value = doPaciente;
+                } else if (convenios.length === 1) {
+                    selectConvenio.value = String(convenios[0].id);
+                }
+
+                for (var i = 0; i < selectFormaAtendimento.options.length; i++) {
+                    var opcaoForma = selectFormaAtendimento.options[i];
+                    if (opcaoForma.value !== "CONVENIO") { continue; }
+                    opcaoForma.disabled = !convenios.length;
+                    opcaoForma.textContent = convenios.length ? "Convênio" : "Convênio (profissional não atende convênio)";
+                }
+                if (!convenios.length && selectFormaAtendimento.value === "CONVENIO") {
+                    selectFormaAtendimento.value = "PARTICULAR";
+                }
+                atualizarBlocoConvenio();
+            }
+
+            function atualizarConvenios() {
+                if (!selectProfissional || !selectProfissional.value) {
+                    preencherConvenios([]);
+                    return;
+                }
+                fetch("/agenda/api/profissionais/" + selectProfissional.value + "/procedimentos/")
+                    .then(function (resposta) { return resposta.json(); })
+                    .then(function (dados) {
+                        preencherConvenios(dados.convenios || []);
+                        popularTodosProcedimentos();
+                    });
+            }
+
+            if (selectProfissional) {
+                selectProfissional.addEventListener("change", atualizarConvenios);
+            }
+            if (selectPacienteConvenio) {
+                selectPacienteConvenio.addEventListener("change", function () {
+                    // Trocou o paciente: puxa o convênio do cadastro dele, se o profissional atende.
+                    var doPaciente = convenioDoPaciente();
+                    if (selectConvenio && doPaciente && temOpcao(selectConvenio, doPaciente)
+                        && selectConvenio.value !== String(doPaciente)) {
+                        selectConvenio.value = doPaciente;
+                        popularTodosProcedimentos();
+                    }
+                });
+            }
+            if (selectFormaAtendimento) {
+                selectFormaAtendimento.addEventListener("change", function () {
+                    atualizarBlocoConvenio();
+                    popularTodosProcedimentos();
+                });
+            }
+            if (selectConvenio) {
+                selectConvenio.addEventListener("change", popularTodosProcedimentos);
+            }
+            atualizarBlocoConvenio();
+            if (selectProfissional && selectProfissional.value) {
+                atualizarConvenios();
+            }
+
+            // Aviso visual (não bloqueia o envio — a validação de verdade é no
+            // servidor, ver AgendamentoForm.clean()) lembrando que encaixe
+            // exige uma observação explicando o motivo.
+            var checkEncaixe = document.getElementById("id_encaixe");
+            var avisoEncaixe = document.getElementById("aviso-encaixe-observacao");
+            function atualizarAvisoEncaixe() {
+                if (checkEncaixe && avisoEncaixe) {
+                    avisoEncaixe.style.display = checkEncaixe.checked ? "block" : "none";
+                }
+            }
+            if (checkEncaixe) {
+                checkEncaixe.addEventListener("change", atualizarAvisoEncaixe);
+                atualizarAvisoEncaixe();
+            }
+        })();
+    </script>
+{% endblock %}

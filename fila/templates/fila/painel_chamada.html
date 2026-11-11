@@ -1,0 +1,88 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Chamar senha — Clínica SMEDIM{% endblock %}
+{% block conteudo %}
+    <h2 style="margin:0 0 4px;">Painel de chamada</h2>
+
+    {% if not pode_chamar %}
+        <div class="mensagem warning">
+            {% if not guiche_de_hoje and not especialidades_hoje_rotulos %}
+                Você ainda não escolheu guichê nem especialidades hoje —
+            {% elif not guiche_de_hoje %}
+                Você ainda não escolheu um guichê hoje —
+            {% else %}
+                Você ainda não definiu quais especialidades está cobrindo hoje —
+            {% endif %}
+            por isso "Chamar próxima senha" está desabilitado.
+            <a href="{% url 'agenda:agenda_dia' %}">Definir agora na Agenda do dia</a>.
+        </div>
+    {% endif %}
+
+    <p style="font-size:13px;color:var(--texto-suave);">
+        {% if guiche_de_hoje %}Guichê de hoje: <strong>{{ guiche_de_hoje.nome }}</strong>.{% endif %}
+        {% if especialidades_hoje_rotulos %}Especialidades cobertas hoje: <strong>{{ especialidades_hoje_rotulos|join:", " }}</strong>.{% endif %}
+    </p>
+
+    {% if senha_atual %}
+        <div style="border:2px solid var(--marca);border-radius:12px;padding:24px;text-align:center;margin:20px 0;">
+            <div style="font-size:14px;color:var(--texto-suave);">Atendendo agora</div>
+            <div style="font-size:48px;font-weight:700;margin:6px 0;">{{ senha_atual.codigo }}</div>
+            <div style="font-size:15px;">{{ senha_atual.rotulo_atendimento }}</div>
+            {% if senha_atual.motivo_prioridade %}
+                <div style="font-size:13px;color:var(--texto-suave);">{{ senha_atual.get_motivo_prioridade_display }}</div>
+            {% endif %}
+        </div>
+        <form method="post" style="display:flex;gap:10px;flex-wrap:wrap;">
+            {% csrf_token %}
+            <button type="submit" name="acao" value="concluir" class="botao">Concluir atendimento</button>
+            <button type="submit" name="acao" value="chamar_novamente" class="botao-mini">Chamar novamente</button>
+        </form>
+    {% else %}
+        <form method="post" style="margin:20px 0;">
+            {% csrf_token %}
+            <button type="submit" name="acao" value="chamar" class="botao" {% if not pode_chamar %}disabled{% endif %}>
+                Chamar próxima senha
+            </button>
+        </form>
+    {% endif %}
+
+    <p style="font-size:13px;">
+        <a href="{% url 'fila:painel_espera' %}" target="_blank" rel="noopener">Abrir painel de espera (TV da sala de espera) ↗</a>
+    </p>
+
+    {% if mostra_fila_espera %}
+        {% include "fila/_fila_espera_tabela.html" %}
+    {% endif %}
+
+    <h3 style="margin:24px 0 6px;">Senhas chamadas hoje</h3>
+    <p style="font-size:12.5px;color:var(--texto-suave);margin:0 0 8px;">
+        "Chamar de novo" anuncia a senha outra vez no painel da TV, para o mesmo guichê de quem chamou antes.
+    </p>
+    {% if chamadas_hoje %}
+        <div class="tabela-scroll">
+            <table>
+                <thead><tr><th>Senha</th><th>Atendimento</th><th>Guichê</th><th>Chamada por</th><th>Última chamada</th><th>Situação</th><th></th></tr></thead>
+                <tbody>
+                    {% for senha in chamadas_hoje %}
+                        <tr>
+                            <td><strong>{{ senha.codigo }}</strong></td>
+                            <td>{{ senha.rotulo_atendimento }}{% if senha.motivo_prioridade %}<div class="qtd" style="font-size:12px;color:var(--texto-suave);">{{ senha.get_motivo_prioridade_display }}</div>{% endif %}</td>
+                            <td>{{ senha.guiche.nome|default:"—" }}</td>
+                            <td>{{ senha.chamado_por.get_full_name|default:senha.chamado_por.username|default:"—" }}</td>
+                            <td>{{ senha.chamado_em|time:"H:i" }}</td>
+                            <td>{{ senha.get_status_display }}</td>
+                            <td>
+                                <form method="post" style="margin:0;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="senha_id" value="{{ senha.pk }}">
+                                    <button type="submit" name="acao" value="rechamar" class="botao-mini">Chamar de novo</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p style="font-size:13px;color:var(--texto-suave);">Nenhuma senha chamada hoje ainda.</p>
+    {% endif %}
+{% endblock %}

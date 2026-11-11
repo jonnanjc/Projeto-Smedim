@@ -1,0 +1,32 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Excluir pagamento de repasse — Clínica SMEDIM{% endblock %}
+{% block conteudo %}
+    <h2>Excluir pagamento de repasse</h2>
+    <p>
+        Tem certeza que deseja excluir o pagamento de <strong>R$ {{ repasse.valor }}</strong> a
+        <strong>{{ repasse.profissional.nome }}</strong> ({{ repasse.get_forma_display|lower }},
+        {{ repasse.data|date:"d/m/Y" }})?
+    </p>
+    <p style="font-size:13px;color:var(--texto-suave);">
+        O valor volta a ficar pendente nos atendimentos abaixo.
+        {% if repasse.movimentacao %}A saída de caixa de R$ {{ repasse.movimentacao.valor }} gerada por este pagamento também será excluída.{% endif %}
+    </p>
+    {% if alocacoes %}
+        <table>
+            <tr><th>Data</th><th>Paciente</th><th>Valor abatido</th></tr>
+            {% for alocacao in alocacoes %}
+                <tr>
+                    <td>{{ alocacao.pagamento.agendamento.data_hora_inicio|date:"d/m/Y" }}</td>
+                    <td>{{ alocacao.pagamento.agendamento.paciente.nome_completo }}</td>
+                    <td>R$ {{ alocacao.valor }}</td>
+                </tr>
+            {% endfor %}
+        </table>
+    {% endif %}
+
+    <form method="post" style="margin-top:16px;">
+        {% csrf_token %}
+        <button type="submit" class="botao" style="background:#c0392b;">Sim, excluir</button>
+        <a href="{% url 'financeiro:repasse_pagamento_lista' %}" style="margin-left:12px;">Voltar</a>
+    </form>
+{% endblock %}

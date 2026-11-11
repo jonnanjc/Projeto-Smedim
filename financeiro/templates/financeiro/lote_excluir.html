@@ -1,0 +1,20 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Excluir lote — Clínica SMEDIM{% endblock %}
+{% block conteudo %}
+    <h2>Excluir lote {{ lote.identificacao }}</h2>
+    <p>
+        Tem certeza que deseja excluir o lote <strong>{{ lote.identificacao }}</strong> —
+        <strong>{{ lote.convenio.nome }}</strong>, {{ lote.quantidade_itens }} atendimento(s),
+        enviado em {{ lote.data_envio|date:"d/m/Y" }} (R$ {{ lote.valor_total_enviado }})?
+        <br><span style="color:#c0392b;font-weight:600;">
+            Esta ação não pode ser desfeita. Os atendimentos incluídos voltam a ficar disponíveis
+            para entrar em outro lote.
+        </span>
+    </p>
+
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="botao" style="background:#c0392b;">Sim, excluir</button>
+        <a href="{% url 'financeiro:lote_detalhe' lote.pk %}" style="margin-left:12px;">Voltar</a>
+    </form>
+{% endblock %}

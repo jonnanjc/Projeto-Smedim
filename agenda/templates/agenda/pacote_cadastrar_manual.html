@@ -1,0 +1,159 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Cadastrar pacote do sistema antigo — Clínica SMEDIM{% endblock %}
+{% block conteudo %}
+    <h2 style="margin:0 0 6px;">Cadastrar pacote do sistema antigo</h2>
+    <p style="font-size:13px;color:var(--texto-suave);margin:0 0 16px;">
+        Para o paciente que já tinha pacote no sistema antigo. O pacote passa a valer na hora: os atendimentos
+        particulares com o profissional usam o saldo sozinhos. Se ficar <strong>a pagar</strong>, esses atendimentos
+        passam pelo financeiro, que pode cobrar o pacote em qualquer um deles (ou só confirmar e autorizar).
+    </p>
+
+    {% for erro in form.non_field_errors %}<div class="mensagem error">{{ erro }}</div>{% endfor %}
+    {% for erro in erros_usadas %}<div class="mensagem error">{{ erro }}</div>{% endfor %}
+
+    <form method="post" style="max-width:640px;">
+        {% csrf_token %}
+        <div class="campo-bloco">
+            <label for="busca-paciente">Paciente:</label>
+            <div style="position:relative;">
+                <input type="text" id="busca-paciente" class="campo" autocomplete="off" style="width:100%;"
+                       placeholder="Digite o nome ou CPF do paciente..." value="{{ paciente_escolhido.nome_completo|default:'' }}">
+                <div id="sugestoes-paciente" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:20;
+                     background:var(--bg-cartao,#ffffff);border:1px solid var(--borda,#dfe3ea);border-radius:6px;
+                     max-height:220px;overflow-y:auto;margin-top:2px;"></div>
+            </div>
+            {{ form.paciente }}
+            {% for erro in form.paciente.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+        </div>
+
+        <div class="campo-bloco">
+            {{ form.profissional.label_tag }}
+            {{ form.profissional }}
+            {% for erro in form.profissional.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+        </div>
+
+        <div class="campo-bloco">
+            {{ form.pacote.label_tag }}
+            <select name="pacote" id="id_pacote" class="campo" required>
+                <option value="">---------</option>
+                {% for pacote in pacotes %}
+                    <option value="{{ pacote.pk }}" data-valor="{{ pacote.valor|stringformat:'s' }}"
+                            {% if form.pacote.value|stringformat:'s' == pacote.pk|stringformat:'s' %}selected{% endif %}>
+                        {{ pacote.nome }} — R$ {{ pacote.valor }} ({{ pacote.itens_resumo }})
+                    </option>
+                {% endfor %}
+            </select>
+            {% for erro in form.pacote.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+        </div>
+
+        {% for pacote in pacotes %}
+            <fieldset class="usadas-pacote" data-pacote="{{ pacote.pk }}" style="display:none;border:1px solid var(--borda);border-radius:8px;padding:12px 16px;margin:0 0 16px;">
+                <legend style="padding:0 6px;font-weight:600;">Já usadas no sistema antigo</legend>
+                {% for item in pacote.itens.all %}
+                    <div class="campo-bloco" style="display:flex;gap:10px;align-items:center;">
+                        <label for="id_usadas_{{ item.pk }}" style="flex:1;">{{ item.procedimento.nome }} (de {{ item.quantidade }}):</label>
+                        <input type="number" min="0" max="{{ item.quantidade }}" name="usadas_{{ item.pk }}" id="id_usadas_{{ item.pk }}"
+                               value="{{ item.usadas_digitadas }}" class="campo" style="max-width:100px;">
+                    </div>
+                {% endfor %}
+                <div style="font-size:12px;color:var(--texto-suave);">Deixe 0 se o paciente ainda não usou nenhuma.</div>
+            </fieldset>
+        {% endfor %}
+
+        <div class="campo-bloco">
+            {{ form.valor.label_tag }}
+            {{ form.valor }}
+            <div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">
+                Preenchido com o valor do cadastro do pacote — corrija se o combinado no sistema antigo foi outro.
+            </div>
+            {% for erro in form.valor.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+        </div>
+
+        <div class="campo-bloco">
+            <label>{{ form.situacao.label }}:</label>
+            {% for opcao in form.situacao %}
+                <div style="margin:4px 0;"><label style="font-weight:normal;display:flex;gap:6px;align-items:flex-start;">{{ opcao.tag }} {{ opcao.choice_label }}</label></div>
+            {% endfor %}
+            {% for erro in form.situacao.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+        </div>
+
+        <button type="submit" class="botao">Cadastrar pacote</button>
+        <a href="{% url 'agenda:pacotes_vendidos' %}" style="margin-left:12px;">Voltar</a>
+    </form>
+
+    <script>
+        (function () {
+            var selectPacote = document.getElementById("id_pacote");
+            var campoValor = document.getElementById("id_valor");
+            function mostrarUsadas(preencherValor) {
+                document.querySelectorAll(".usadas-pacote").forEach(function (bloco) {
+                    bloco.style.display = bloco.getAttribute("data-pacote") === selectPacote.value ? "block" : "none";
+                });
+                var opcao = selectPacote.options[selectPacote.selectedIndex];
+                if (preencherValor && opcao && opcao.getAttribute("data-valor")) {
+                    campoValor.value = window.Moeda.formatar(parseFloat(opcao.getAttribute("data-valor")));
+                }
+            }
+            selectPacote.addEventListener("change", function () { mostrarUsadas(true); });
+            mostrarUsadas(!campoValor.value);
+
+            // Busca de paciente pelo servidor (agenda.views.buscar_pacientes), igual à tela de agendamento.
+            var busca = document.getElementById("busca-paciente");
+            var sugestoes = document.getElementById("sugestoes-paciente");
+            var campoPaciente = document.getElementById("id_paciente");
+            var url = "{% url 'agenda:buscar_pacientes' %}";
+            var temporizador = null;
+            var numero = 0;
+            function esconder() { sugestoes.style.display = "none"; sugestoes.innerHTML = ""; }
+            function aviso(texto) {
+                sugestoes.innerHTML = "";
+                var div = document.createElement("div");
+                div.textContent = texto;
+                div.style.cssText = "padding:8px 10px;color:var(--texto-suave,#999);font-size:13px;";
+                sugestoes.appendChild(div);
+                sugestoes.style.display = "block";
+            }
+            busca.addEventListener("input", function () {
+                campoPaciente.value = "";
+                clearTimeout(temporizador);
+                var termo = busca.value.trim();
+                if (termo.length < 2) { esconder(); return; }
+                temporizador = setTimeout(function () {
+                    var meu = ++numero;
+                    fetch(url + "?q=" + encodeURIComponent(termo), {credentials: "same-origin"})
+                        .then(function (r) { return r.json(); })
+                        .then(function (dados) {
+                            if (meu !== numero) { return; }
+                            if (!dados.pacientes.length) { aviso("Nenhum paciente encontrado com esse nome."); return; }
+                            sugestoes.innerHTML = "";
+                            dados.pacientes.forEach(function (paciente) {
+                                var item = document.createElement("div");
+                                item.style.cssText = "padding:8px 10px;cursor:pointer;font-size:14px;";
+                                var nome = document.createElement("div");
+                                nome.textContent = paciente.nome;
+                                item.appendChild(nome);
+                                if (paciente.detalhes) {
+                                    var det = document.createElement("div");
+                                    det.textContent = paciente.detalhes;
+                                    det.style.cssText = "font-size:12px;color:var(--texto-suave,#999);";
+                                    item.appendChild(det);
+                                }
+                                item.addEventListener("mouseenter", function () { item.style.background = "var(--bg)"; });
+                                item.addEventListener("mouseleave", function () { item.style.background = "transparent"; });
+                                item.addEventListener("mousedown", function (evento) {
+                                    evento.preventDefault();
+                                    campoPaciente.value = paciente.id;
+                                    busca.value = paciente.nome;
+                                    esconder();
+                                });
+                                sugestoes.appendChild(item);
+                            });
+                            sugestoes.style.display = "block";
+                        })
+                        .catch(function () { aviso("Não foi possível buscar agora — tente de novo."); });
+                }, 250);
+            });
+            busca.addEventListener("blur", function () { setTimeout(esconder, 150); });
+        })();
+    </script>
+{% endblock %}

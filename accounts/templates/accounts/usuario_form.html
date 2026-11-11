@@ -1,0 +1,37 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}{{ titulo }} — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <p><a href="{% url 'usuario_lista' %}">← Voltar para usuários</a></p>
+    <h2>{{ titulo }}</h2>
+    <form method="post">
+        {% csrf_token %}
+        {% for campo in form %}
+            <div class="campo-bloco">
+                {{ campo.label_tag }}
+                {{ campo }}
+                {% if campo.help_text %}<div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">{{ campo.help_text }}</div>{% endif %}
+                {% for erro in campo.errors %}
+                    <div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+        {% if form.non_field_errors %}
+            {% for erro in form.non_field_errors %}
+                <div class="mensagem error">{{ erro }}</div>
+            {% endfor %}
+        {% endif %}
+
+        {% if departamentos and request.user.is_superuser %}
+            <h3>Permissões extras deste usuário</h3>
+            <p style="font-size:13px;color:var(--texto-suave);">
+                Além do(s) perfil(is) marcados acima, você pode liberar permissões extras só para
+                este usuário — o que ele pode fazer é a soma do perfil com essas marcações aqui.
+            </p>
+            {% include "accounts/_permissoes_por_departamento.html" with departamentos=departamentos permissoes_selecionadas=permissoes_individuais_selecionadas nome_campo="permissoes_individuais" %}
+        {% endif %}
+
+        <button type="submit" class="botao">Salvar</button>
+        <a href="{% url 'usuario_lista' %}" style="margin-left:12px;">Cancelar</a>
+    </form>
+{% endblock %}

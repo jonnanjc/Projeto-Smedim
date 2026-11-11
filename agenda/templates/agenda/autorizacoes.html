@@ -1,0 +1,101 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Autorizações — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <style>
+        tr.linha-atendida td { background: rgba(46, 160, 67, 0.16); }
+        .autorizacao-obs { white-space: pre-line; }
+    </style>
+    <h2 style="margin:0;">Autorizações</h2>
+    <p style="font-size:13px;color:var(--texto-suave);">
+        Atendimentos já autorizados no período, com quem autorizou, a observação e a guia usada.
+        As linhas em <strong style="color:#2ea043;">verde</strong> são autorizações já atendidas.
+        As guias de sessões e o saldo de cada uma ficam em <a href="{% url 'agenda:guias_convenio' %}">Guias do convênio</a>.
+    </p>
+
+    <form method="get" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin:12px 0;">
+        <div>
+            <label>Data:</label>
+            <input type="date" name="de" value="{{ de|date:'Y-m-d' }}" class="campo">
+        </div>
+        <div>
+            <label>até:</label>
+            <input type="date" name="ate" value="{{ ate|date:'Y-m-d' }}" class="campo">
+        </div>
+        <div>
+            <label>Convênio:</label>
+            <select name="convenio" class="campo">
+                <option value="">Todos</option>
+                <option value="particular" {% if convenio_selecionado == "particular" %}selected{% endif %}>Particular</option>
+                {% for convenio in convenios %}
+                    <option value="{{ convenio.pk }}" {% if convenio_selecionado == convenio.pk|stringformat:"s" %}selected{% endif %}>{{ convenio.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label>Nome do paciente:</label>
+            <input type="text" name="paciente" value="{{ paciente_nome }}" class="campo">
+        </div>
+        <div>
+            <label>Profissional:</label>
+            <select name="profissional" class="campo">
+                <option value="">Todos</option>
+                {% for profissional in profissionais %}
+                    <option value="{{ profissional.pk }}" {% if profissional_selecionado == profissional.pk|stringformat:"s" %}selected{% endif %}>{{ profissional.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="botao">Procurar</button>
+    </form>
+
+    <p style="font-size:13px;color:var(--texto-suave);">{{ pagina.paginator.count }} autorização(ões) no período.</p>
+
+    <div style="overflow-x:auto;">
+    <table>
+        <tr>
+            <th>Data</th>
+            <th>Paciente</th>
+            <th>Profissional</th>
+            <th>Procedimento</th>
+            <th>Convênio</th>
+            <th>Guia</th>
+            <th>Autorizado por</th>
+            <th>Observação</th>
+            <th>Status</th>
+            {% if pode_cancelar %}<th class="no-imprimir"></th>{% endif %}
+        </tr>
+        {% for ag in linhas %}
+            <tr {% if ag.status == "REALIZADO" %}class="linha-atendida"{% endif %}>
+                <td style="white-space:nowrap;">{{ ag.data_hora_inicio|date:"d/m/Y" }}<div style="font-size:12px;color:var(--texto-suave);">{{ ag.horario_exibicao }}</div></td>
+                <td>{{ ag.paciente.nome_completo }}</td>
+                <td>{{ ag.profissional.nome }}</td>
+                <td>
+                    {% for item in ag.itens.all %}
+                        <div>{{ item }}{% if item.eh_retorno %} <span style="font-size:12px;color:var(--texto-suave);">(retorno)</span>{% elif item.pacote_vendido_id %} <span style="font-size:12px;color:var(--texto-suave);">(pacote)</span>{% endif %}
+                            {% if item.sem_assinatura %}<span style="font-size:12px;font-weight:600;color:#c0392b;"> ✍ sem assinatura</span>{% elif item.assinada_em %}<span style="font-size:12px;color:var(--texto-suave);"> ✔ assinada em {{ item.assinada_em|date:"d/m/Y" }}</span>{% endif %}</div>
+                    {% endfor %}
+                </td>
+                <td>{% if ag.forma_atendimento == "CONVENIO" %}{{ ag.convenio.nome|default:"—" }}{% else %}Particular{% endif %}</td>
+                <td style="font-size:13px;">
+                    {% if ag.numero_guia %}<div>{{ ag.numero_guia }}</div>{% endif %}
+                    {% for texto in ag.guias_usadas %}<div>{{ texto }}</div>{% endfor %}
+                    {% if not ag.numero_guia and not ag.guias_usadas %}—{% endif %}
+                </td>
+                <td style="font-size:13px;">
+                    {% if ag.autorizado_por %}{{ ag.autorizado_por.get_full_name|default:ag.autorizado_por.username }}{% else %}—{% endif %}
+                    {% if ag.autorizado_em %}<div style="font-size:12px;color:var(--texto-suave);">{{ ag.autorizado_em|date:"d/m H:i" }}</div>{% endif %}
+                </td>
+                <td class="autorizacao-obs" style="font-size:13px;">{{ ag.observacao_autorizacao|default:"" }}</td>
+                <td>{% if ag.status == "REALIZADO" %}Atendido{% else %}Autorizado{% endif %}</td>
+                {% if pode_cancelar %}
+                    {# Cancelar o já autorizado fica só aqui, com permissão própria (pedido da clínica, 23/10/2026). #}
+                    <td class="no-imprimir"><a href="{% url 'agenda:agendamento_cancelar_autorizado' ag.pk %}?proximo={{ request.get_full_path|urlencode }}" style="color:#c0392b;">Cancelar</a></td>
+                {% endif %}
+            </tr>
+        {% empty %}
+            <tr><td colspan="{% if pode_cancelar %}10{% else %}9{% endif %}" style="color:var(--texto-suave);">Nenhuma autorização no período.</td></tr>
+        {% endfor %}
+    </table>
+    </div>
+    {% include 'accounts/_paginacao.html' %}
+{% endblock %}

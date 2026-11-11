@@ -1,0 +1,12 @@
+{% extends "documentos/documento_imprimir_base.html" %}
+{% block titulo %}Atestado — {{ paciente.nome_completo }} — Clínica SMEDIM{% endblock %}
+{% block corpo_documento %}
+    <div class="documento-titulo">Atestado médico</div>
+    <div class="documento-corpo">
+        Atesto que <strong>{{ paciente.nome_completo }}</strong>, com <strong>{% if idade is not None %}{{ idade }}{% else %}_____{% endif %}</strong> anos de idade,
+        portador do documento <strong>{{ documento.documento_identificacao }}</strong>, deverá afastar-se do
+        trabalho por um período de <strong>{{ documento.dias_afastamento }}</strong> dias, a partir de
+        <strong>{{ documento.data_inicio_afastamento|date:"d/m/Y" }}</strong> conforme o CID
+        <strong>{{ documento.cid }}</strong>.
+    </div>
+{% endblock %}

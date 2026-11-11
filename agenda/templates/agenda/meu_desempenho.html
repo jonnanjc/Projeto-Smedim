@@ -1,0 +1,57 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Meu desempenho — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    {% if not profissional %}
+        <h2>Meu desempenho</h2>
+    {% else %}
+        <style>
+            .barra-linha { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 13px; }
+            .barra-rotulo { width: 92px; flex-shrink: 0; color: var(--relatorio-texto-forte); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .barra-trilho { flex: 1; background: var(--relatorio-destaque-bg); border-radius: 4px; height: 10px; overflow: hidden; }
+            .barra-preenchida { display: block; height: 100%; background: var(--marca); border-radius: 4px; min-width: 2px; }
+            .barra-valor { width: 92px; flex-shrink: 0; text-align: right; color: var(--relatorio-texto-suave); font-size: 12px; }
+        </style>
+
+        <div class="relatorio-nav no-imprimir">
+            <a href="?ano={{ mes_anterior_ano }}&mes={{ mes_anterior_mes }}">‹ Mês anterior</a>
+            <input type="month" value="{{ ano }}-{{ mes|stringformat:'02d' }}" style="border:1px solid var(--borda);border-radius:6px;padding:3px 8px;font:inherit;font-size:12.5px;background:var(--bg-cartao);color:var(--texto);" onchange="
+                var p = new URLSearchParams(window.location.search);
+                var partes = this.value.split('-');
+                p.set('ano', partes[0]); p.set('mes', parseInt(partes[1], 10));
+                window.location.search = p.toString();
+            ">
+            <a href="?ano={{ mes_seguinte_ano }}&mes={{ mes_seguinte_mes }}">Mês seguinte ›</a>
+        </div>
+
+        <div class="relatorio-pagina">
+            <div class="relatorio-topo">
+                <div class="relatorio-marca">
+                    <div class="relatorio-selo">S</div>
+                    <div>
+                        <div class="relatorio-nome-clinica">Clínica SMEDIM</div>
+                        <div class="relatorio-subtitulo-marca">Meu desempenho</div>
+                    </div>
+                </div>
+                <div class="relatorio-titulo">
+                    <h2>{{ profissional.nome }}</h2>
+                    <div class="relatorio-periodo">{{ mes_inicio|date:"F \d\e Y"|capfirst }}</div>
+                    <div class="relatorio-gerado">Gerado em {% now "d/m/Y" %} às {% now "H:i" %}</div>
+                </div>
+            </div>
+
+            <p style="color:var(--relatorio-texto-suave);font-size:12.5px;margin:-8px 0 20px;">
+                Quando você mais atende e quais convênios mais atende — só contagem de atendimentos
+                <strong>Realizados</strong>, sem valores em R$ (isso já existe em
+                <a href="{% url 'financeiro:meu_fechamento_diario' %}">Meu fechamento</a>).
+            </p>
+
+            {% include "agenda/_desempenho_secao.html" with dados=no_mes titulo="Este mês" epoca="no mês" %}
+            {% include "agenda/_desempenho_secao.html" with dados=historico titulo="Histórico (desde o início)" epoca="no histórico" %}
+
+            <div class="rodape-relatorio"><span>Clínica SMEDIM — documento interno</span><span>{{ mes_inicio|date:"m/Y" }}</span></div>
+        </div>
+
+        <button type="button" class="botao-imprimir no-imprimir" onclick="window.print()">🖨️ Imprimir</button>
+    {% endif %}
+{% endblock %}

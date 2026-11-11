@@ -1,0 +1,164 @@
+{% comment %}
+Seções compartilhadas por fechamento_diario.html e fechamento_mensal.html — só muda o
+período (um dia ou o mês inteiro) e o texto "epoca" (ex.: "hoje" / "no mês"), passado
+pela view que inclui este parcial. Ver financeiro.views._contexto_fechamento.
+
+De propósito, NÃO tem seção de estornos nem de posição de caixa aqui — esta página é o
+que fica impresso/entregue ao profissional quando o filtro seleciona alguém, e aquilo é
+movimento interno da clínica (ver Painel financeiro, financeiro/views.painel_financeiro).
+{% endcomment %}
+
+<div class="secao">
+    {# Com valor (pedido da clínica, 23/10/2026): valor da Tabela de Preços congelado na autorização — a receber do plano. #}
+    <div class="secao-titulo">Convênios <span class="legenda">por procedimento — {% if convenio_desconto %}valor já com o desconto de {{ convenio_desconto }}% da clínica{% else %}valor da tabela do convênio, a receber do plano{% endif %}</span></div>
+    {% for grupo in convenios %}
+        <div class="grupo-procedimento">
+            <div class="grupo-nome">{{ grupo.nome }} <span class="qtd">{{ grupo.total }} proc.</span><span class="valor fonte-num" style="float:right;">R$ {{ grupo.valor }}</span></div>
+            {% for item in grupo.itens %}
+                <div class="linha-item sub">
+                    <span class="rotulo">{{ item.procedimento }} <span class="qtd">({{ item.qtd }})</span></span>
+                    <span class="valor fonte-num">{% if item.retorno %}grátis{% elif item.pago_na_clinica %}<span class="qtd">valor no Particular</span>{% else %}R$ {{ item.valor }}{% if item.sem_valor %} <span class="qtd" style="color:#c0392b;">+ {{ item.sem_valor }} sem preço</span>{% endif %}{% endif %}</span>
+                </div>
+            {% endfor %}
+        </div>
+    {% empty %}
+        <p style="color:var(--texto-suave);font-size:13px;">Nenhum atendimento por convênio {{ epoca }}.</p>
+    {% endfor %}
+    {% if convenios %}
+        <div class="linha-total"><span>Total convênio · {{ convenios_total }} procedimentos</span><span class="fonte-num">R$ {{ convenios_valor }}</span></div>
+        {% if convenios_sem_valor %}
+            <p style="font-size:11.5px;color:#c0392b;margin-top:4px;">
+                {{ convenios_sem_valor }} procedimento(s) sem preço na Tabela de Preços do convênio não entraram no valor —
+                cadastre em Cadastros → Convênios.
+            </p>
+        {% endif %}
+    {% endif %}
+</div>
+
+<div class="secao">
+    <div class="secao-titulo">Retornos <span class="legenda">quantidade por especialidade — sem valores (retorno nunca gera cobrança)</span></div>
+    {% for linha in retornos %}
+        <div class="linha-item"><span class="rotulo">{{ linha.nome }}</span><span class="valor fonte-num">{{ linha.qtd }}</span></div>
+    {% empty %}
+        <p style="color:var(--texto-suave);font-size:13px;">Nenhum retorno {{ epoca }}.</p>
+    {% endfor %}
+    {% if retornos %}
+        <div class="linha-total"><span>Total retornos</span><span class="fonte-num">{{ retornos_total }}</span></div>
+    {% endif %}
+</div>
+
+<div class="secao">
+    <div class="secao-titulo">Particular <span class="legenda">por procedimento</span></div>
+    {% for item in particular_procedimento %}
+        <div class="linha-item"><span class="rotulo">{{ item.procedimento }} <span class="qtd">({{ item.qtd }} proc.)</span></span><span class="valor fonte-num">R$ {{ item.valor }}</span></div>
+    {% empty %}
+        <p style="color:var(--texto-suave);font-size:13px;">Nenhum atendimento particular {{ epoca }}.</p>
+    {% endfor %}
+    {% if particular_procedimento %}
+        <div class="linha-total"><span>Total particular · {{ particular_procedimentos_total }} procedimentos</span><span class="fonte-num">R$ {{ totais_profissionais.bruto }}</span></div>
+    {% endif %}
+</div>
+
+<div class="secao">
+    <div class="secao-titulo">Particular <span class="legenda">por forma de pagamento</span></div>
+    {% if visao_proprietario %}
+        <p style="margin:0 0 6px;font-size:11.5px;color:var(--texto-suave);">
+            Cartão débito/crédito já com a taxa da maquininha descontada, quando informada no recebimento.
+        </p>
+    {% endif %}
+    {% for item in particular_forma %}
+        <div class="linha-item"><span class="rotulo">{{ item.forma }} <span class="qtd">({{ item.qtd }} proc.)</span></span><span class="valor fonte-num">R$ {{ item.valor }}</span></div>
+    {% endfor %}
+    {% if particular_procedimento %}
+        <div class="linha-total"><span>Total particular · {{ particular_procedimentos_total }} procedimentos</span><span class="fonte-num">R$ {{ totais_profissionais.bruto }}</span></div>
+    {% endif %}
+</div>
+
+<div class="secao">
+    <div class="secao-titulo">Produção {{ epoca }} <span class="legenda">particular + convênio, com valor</span></div>
+    <div class="linha-item"><span class="rotulo">Particular <span class="qtd">({% if particular_descontado %}já com desconto{% if convenio_desconto %} de {{ convenio_desconto }}%{% endif %}{% else %}valor cobrado{% endif %})</span></span><span class="valor fonte-num">R$ {{ particular_valor }}</span></div>
+    <div class="linha-item"><span class="rotulo">Convênios <span class="qtd">({% if convenio_desconto %}já com desconto de {{ convenio_desconto }}%{% else %}valor da tabela, a receber{% endif %})</span></span><span class="valor fonte-num">R$ {{ convenios_valor }}</span></div>
+    <div class="linha-total"><span>Produção total</span><span class="fonte-num">R$ {{ producao_total }}</span></div>
+</div>
+
+<div class="secao">
+    <div class="secao-titulo">Repasse por profissional</div>
+    {% if linhas_profissionais %}
+        <div class="tabela-scroll">
+            <table class="tabela-resumo">
+                <thead><tr><th>Profissional</th><th>Atend.</th><th>Bruto</th><th>Retenção</th><th>Repasse líquido</th></tr></thead>
+                <tbody>
+                    {% for linha in linhas_profissionais %}
+                        <tr>
+                            <td>{{ linha.profissional.nome }}{% if linha.profissional.eh_proprietario %}<span class="selo-dono">proprietário</span>{% endif %}</td>
+                            <td class="fonte-num">{{ linha.atendimentos }}</td>
+                            <td class="fonte-num">R$ {{ linha.bruto }}</td>
+                            <td class="fonte-num">
+                                {% if linha.profissional.eh_proprietario %}—{% else %}R$ {{ linha.retido }} <span class="qtd">{% if linha.so_valor_fixo %}valor fixo{% else %}{{ linha.percentual }}%{% if linha.tem_valor_fixo %} + valor fixo{% endif %}{% endif %}</span>{% endif %}
+                            </td>
+                            <td class="fonte-num">
+                                R$ {{ linha.repasse }}
+                                {% if not linha.profissional.eh_proprietario %}<div class="qtd" style="margin-top:2px;font-weight:400;">já pago R$ {{ linha.repasse_ja_pago }} · pendente R$ {{ linha.repasse_pendente }}</div>{% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    <tr class="linha-total-tabela">
+                        <td>Total</td>
+                        <td class="fonte-num">{{ totais_profissionais.atendimentos }}</td>
+                        <td class="fonte-num">R$ {{ totais_profissionais.bruto }}</td>
+                        <td class="fonte-num">R$ {{ totais_profissionais.retido }}</td>
+                        <td class="fonte-num">
+                            R$ {{ totais_profissionais.repasse }}
+                            <div class="qtd" style="margin-top:2px;font-weight:400;">já pago R$ {{ totais_profissionais.repasse_ja_pago }} · pendente R$ {{ totais_profissionais.repasse_pendente }}</div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <p style="font-size:11px;color:#8a9691;margin-top:8px;">
+            "Já pago" é o que já foi repassado (dinheiro, cartão ou Pix), inclusive pagamentos
+            parciais. Desde 26/10/2026 o dinheiro também fica pendente até o repasse ser registrado.
+            "Pendente" é o saldo que ainda falta repassar — detalhe em Agenda → Repasses
+            semanais.
+        </p>
+        {% if totais_profissionais.estornado %}
+            <p style="font-size:11.5px;color:#8a9691;margin-top:4px;">
+                O bruto acima inclui atendimentos do período que tiveram pagamento estornado depois
+                (R$ {{ totais_profissionais.estornado }} no total).
+            </p>
+        {% endif %}
+    {% else %}
+        <p style="color:var(--texto-suave);font-size:13px;">Nenhum atendimento particular {{ epoca }}.</p>
+    {% endif %}
+</div>
+
+{% if visao_proprietario %}
+    <div class="caixa-proprietario">
+        <div class="titulo-dono">Visão do proprietário — {{ visao_proprietario.profissional.nome }}</div>
+        <div class="linha-item"><span class="rotulo">Produção própria {{ epoca }} (100%, sem retenção)</span><span class="valor fonte-num">R$ {{ visao_proprietario.producao_propria }}</span></div>
+        <div class="linha-item"><span class="rotulo">Retenção da clínica sobre os demais profissionais {{ epoca }}</span><span class="valor fonte-num">R$ {{ visao_proprietario.retencao_outros }}</span></div>
+        <div class="linha-item"><span class="rotulo">Entradas avulsas de caixa {{ epoca }}</span><span class="valor fonte-num">R$ {{ visao_proprietario.avulsas_entradas }}</span></div>
+        <div class="linha-item"><span class="rotulo">Saídas avulsas de caixa {{ epoca }}</span><span class="valor fonte-num">− R$ {{ visao_proprietario.avulsas_saidas }}</span></div>
+        {% if mostrar_detalhe_saidas %}
+            {% for item in visao_proprietario.avulsas_saidas_itens %}
+                <div class="linha-item sub"><span class="rotulo">{{ item.descricao }}{% if item.profissional %} — {{ item.profissional.nome }}{% endif %}</span><span class="valor fonte-num">− R$ {{ item.valor }}</span></div>
+            {% endfor %}
+        {% endif %}
+        <div class="linha-total"><span>Resultado do proprietário {{ epoca }}</span><span class="fonte-num">R$ {{ visao_proprietario.resultado }}</span></div>
+        <div class="linha-item" style="margin-top:8px;"><span class="rotulo">Em dinheiro <span class="qtd">(no caixa)</span></span><span class="valor fonte-num">R$ {{ visao_proprietario.dinheiro_total }}</span></div>
+        {% if visao_proprietario.repasses_dinheiro %}
+            <div class="linha-item sub"><span class="rotulo">já descontado: repasse pago em dinheiro do caixa</span><span class="valor fonte-num">− R$ {{ visao_proprietario.repasses_dinheiro }}</span></div>
+            {% if mostrar_detalhe_saidas %}
+                {% for item in visao_proprietario.repasses_dinheiro_itens %}
+                    <div class="linha-item sub"><span class="rotulo">{{ item.profissional.nome|default:item.descricao }}</span><span class="valor fonte-num">− R$ {{ item.valor }}</span></div>
+                {% endfor %}
+            {% endif %}
+        {% endif %}
+        <div class="linha-item"><span class="rotulo">Em banco <span class="qtd">(cartão/Pix, parte do proprietário)</span></span><span class="valor fonte-num">R$ {{ visao_proprietario.banco_total }}</span></div>
+        <p style="font-size:11px;color:#8a9691;margin-top:6px;">
+            "Em dinheiro" é o dinheiro físico no caixa: inclui a parte dos profissionais que ainda não foi
+            repassada (ver Repasses) e o dinheiro de convênio pago na clínica. Repasse pago em dinheiro
+            sai do caixa, mas não reduz o resultado — a parte do profissional já fica fora da retenção.
+        </p>
+    </div>
+{% endif %}

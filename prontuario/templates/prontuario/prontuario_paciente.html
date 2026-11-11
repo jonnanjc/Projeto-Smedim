@@ -1,0 +1,80 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Prontuário — {{ paciente.nome_completo }} — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <p><a href="{% url 'prontuario:prontuario_lista' %}">← Prontuários</a></p>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Prontuário — {{ paciente.nome_completo }}</h2>
+        {% if pode_editar %}
+            <span style="display:flex;gap:10px;flex-wrap:wrap;">
+                <a href="{% url 'prontuario:entrada_nova_paciente' paciente.pk %}" class="botao" style="text-decoration:none;">+ Novo registro</a>
+                <a href="{% url 'documentos:atestado_novo_paciente' paciente.pk %}" class="botao" style="text-decoration:none;">Emitir atestado</a>
+                <a href="{% url 'documentos:receituario_novo_paciente' paciente.pk %}" class="botao" style="text-decoration:none;">Emitir receituário</a>
+            </span>
+        {% endif %}
+    </div>
+    {% include "prontuario/_dados_paciente.html" with atendimento=atendimento_autorizado %}
+    <p style="font-size:12px;color:var(--texto-suave);">
+        Registros médicos ficam visíveis a todos os profissionais. Registros da equipe multiprofissional e de
+        Psicologia, Psiquiatria e Terapia/Psicoterapia são sigilosos (🔒) — só aparecem para o profissional que os criou.
+    </p>
+
+    <table>
+        <tr>
+            <th>Data</th>
+            <th>Especialidade</th>
+            <th>Profissional</th>
+            <th>Registro</th>
+            <th class="no-imprimir"></th>
+        </tr>
+        {% for entrada in entradas %}
+            <tr>
+                <td style="white-space:nowrap;">
+                    {% if entrada.data_atendimento %}{{ entrada.data_atendimento|date:"d/m/Y" }}{% else %}{{ entrada.criado_em|date:"d/m/Y H:i" }}{% endif %}
+                    {% if entrada.registrado_depois %}<br><span style="font-size:11px;color:var(--texto-suave);">registrado em {{ entrada.criado_em|date:"d/m/Y H:i" }}</span>{% endif %}
+                </td>
+                <td>{{ entrada.especialidade }}{% if not entrada.compartilhada %} <span title="Sigiloso — só visível para quem criou" style="font-size:11px;">🔒</span>{% endif %}</td>
+                <td>
+                    {{ entrada.profissional_exibicao }}
+                    {% if entrada.somente_leitura %}<br><span style="font-size:11px;color:var(--texto-suave);">Sistema antigo · somente consulta</span>{% endif %}
+                </td>
+                <td style="white-space:pre-wrap;">
+                    {% for rotulo, valor in entrada.secoes_preenchidas %}
+                        <strong>{{ rotulo|capfirst }}:</strong> {{ valor }}{% if not forloop.last %}<br><br>{% endif %}
+                    {% empty %}
+                        —
+                    {% endfor %}
+                </td>
+                <td class="no-imprimir">
+                    {% if pode_editar and not entrada.somente_leitura and entrada.profissional_id == profissional_logado_id %}
+                        <a href="{% url 'prontuario:entrada_editar' entrada.pk %}">Editar</a>
+                        · <a href="{% url 'prontuario:entrada_excluir' entrada.pk %}" style="color:#c0392b;">Apagar</a>
+                    {% endif %}
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="5"><em>Nenhum registro no prontuário ainda.</em></td></tr>
+        {% endfor %}
+    </table>
+
+    <h3 style="margin-top:32px;">Documentos emitidos por você</h3>
+    <p style="font-size:12px;color:var(--texto-suave);margin-top:-8px;">
+        Atestados e receituários são restritos a quem emitiu — não aparecem aqui os emitidos por outro profissional.
+    </p>
+    <table>
+        <tr>
+            <th>Data</th>
+            <th>Tipo</th>
+            <th class="no-imprimir"></th>
+        </tr>
+        {% for documento in documentos %}
+            <tr>
+                <td style="white-space:nowrap;">{{ documento.criado_em|date:"d/m/Y H:i" }}</td>
+                <td>{{ documento.get_tipo_display }}</td>
+                <td class="no-imprimir"><a href="{% url 'documentos:documento_imprimir' documento.pk %}">Abrir / reimprimir</a></td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="3"><em>Nenhum documento emitido por você ainda.</em></td></tr>
+        {% endfor %}
+    </table>
+{% endblock %}

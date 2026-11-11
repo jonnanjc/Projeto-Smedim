@@ -1,0 +1,47 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Emitir receituário — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <h2>Emitir receituário</h2>
+    <p>
+        <strong>Paciente:</strong> {{ paciente.nome_completo }}{% if idade is not None %} ({{ idade }} anos){% endif %}<br>
+        <strong>Profissional:</strong> {{ profissional.nome }} — {{ profissional.registro_profissional }}
+        {% if agendamento %}<br><strong>Atendimento:</strong> {{ agendamento.data_hora_inicio|date:"d/m/Y H:i" }}{% endif %}
+    </p>
+    <form method="post">
+        {% csrf_token %}
+        {{ formset.management_form }}
+
+        <h3 style="font-size:14px;margin-bottom:6px;">Medicamentos</h3>
+        <p style="font-size:12px;color:var(--texto-suave);margin-top:0;">Preencha quantas linhas precisar — deixe as demais em branco.</p>
+        <table style="width:100%;border-collapse:collapse;">
+            <tr>
+                <th style="text-align:left;font-size:11px;color:var(--texto-suave);padding-bottom:6px;">Medicamento</th>
+                <th style="text-align:left;font-size:11px;color:var(--texto-suave);padding-bottom:6px;">Posologia / instruções</th>
+            </tr>
+            {% for item_form in formset %}
+                <tr>
+                    <td style="padding:4px 10px 4px 0;vertical-align:top;width:38%;">
+                        {{ item_form.descricao }}
+                        {% for erro in item_form.descricao.errors %}<div class="mensagem error" style="margin-top:4px;">{{ erro }}</div>{% endfor %}
+                    </td>
+                    <td style="padding:4px 0;vertical-align:top;">
+                        {{ item_form.posologia }}
+                        {% for erro in item_form.posologia.errors %}<div class="mensagem error" style="margin-top:4px;">{{ erro }}</div>{% endfor %}
+                    </td>
+                </tr>
+                {% for hidden in item_form.hidden_fields %}{{ hidden }}{% endfor %}
+            {% endfor %}
+        </table>
+        {% for erro in formset.non_form_errors %}<div class="mensagem error" style="margin-top:10px;">{{ erro }}</div>{% endfor %}
+
+        <div class="campo-bloco" style="margin-top:18px;">
+            {{ form.observacoes.label_tag }}
+            {{ form.observacoes }}
+            {% for erro in form.observacoes.errors %}<div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>{% endfor %}
+        </div>
+
+        <button type="submit" class="botao">Emitir e ir para impressão</button>
+        <a href="{{ voltar_url }}" style="margin-left:12px;">Cancelar</a>
+    </form>
+{% endblock %}

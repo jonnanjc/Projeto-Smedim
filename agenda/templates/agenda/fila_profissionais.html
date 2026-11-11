@@ -1,0 +1,70 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Fila dos profissionais — Clínica SMEDIM{% endblock %}
+{% block conteudo %}
+    {# Recarrega sozinha pra acompanhar quem é chamado e quem é autorizado. #}
+    <meta http-equiv="refresh" content="30">
+    <h2 style="margin:0 0 4px;">Fila dos profissionais</h2>
+    <p style="font-size:13px;color:var(--texto-suave);margin:0 0 6px;">
+        Quem já passou pela recepção (autorizado) e aguarda o profissional chamar, na mesma ordem da
+        "Minha agenda" do profissional. Atualiza sozinha a cada 30 segundos.
+    </p>
+    <p style="font-size:12.5px;color:var(--texto-suave);margin:0 0 12px;">
+        "Na frente" pode mudar: se chegar um <strong>prioritário</strong>, ele entra alternando
+        (1 prioritário, 1 normal) com quem aguarda.
+    </p>
+
+    {% if filas %}
+        <input type="search" id="busca-fila" placeholder="Procurar paciente pelo nome…" autocomplete="off"
+               style="max-width:360px;width:100%;margin:0 0 12px;">
+        {% for fila in filas %}
+            <section class="fila-profissional" style="margin:0 0 22px;">
+                <h3 style="margin:0 0 6px;">{{ fila.profissional.nome }}
+                    <span style="font-size:13px;font-weight:400;color:var(--texto-suave);">— {{ fila.aguardando|length }} aguardando</span>
+                </h3>
+                {% if fila.em_atendimento %}
+                    <p style="font-size:13px;margin:0 0 6px;">Já chamado(s):
+                        {% for a in fila.em_atendimento %}<strong>{{ a.paciente.nome_completo }}</strong> ({{ a.chamado_em|time:"H:i" }}){% if not forloop.last %}, {% endif %}{% endfor %}
+                    </p>
+                {% endif %}
+                {% if fila.aguardando %}
+                    <div class="tabela-scroll">
+                        <table>
+                            <thead><tr><th>Posição</th><th>Paciente</th><th>Na frente</th><th>Entrou na fila</th></tr></thead>
+                            <tbody>
+                                {% for a in fila.aguardando %}
+                                    <tr class="linha-fila" data-nome="{{ a.paciente.nome_completo|lower }}">
+                                        <td><strong>{{ forloop.counter }}º</strong></td>
+                                        <td>{{ a.paciente.nome_completo }}
+                                            {% if a.motivo_prioridade %}<div style="font-size:12px;color:var(--texto-suave);">Prioritário — {{ a.get_motivo_prioridade_display }}</div>{% endif %}
+                                        </td>
+                                        <td>{% if a.na_frente == 0 %}<strong>É o próximo</strong>{% else %}{{ a.na_frente }}{% endif %}</td>
+                                        <td>{{ a.entrou_na_fila|time:"H:i" }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p style="font-size:13px;color:var(--texto-suave);">Ninguém aguardando.</p>
+                {% endif %}
+            </section>
+        {% endfor %}
+        <script>
+            (function () {
+                var busca = document.getElementById("busca-fila");
+                busca.addEventListener("input", function () {
+                    var termo = busca.value.trim().toLowerCase();
+                    document.querySelectorAll(".linha-fila").forEach(function (linha) {
+                        linha.style.display = !termo || linha.dataset.nome.indexOf(termo) !== -1 ? "" : "none";
+                    });
+                    document.querySelectorAll(".fila-profissional").forEach(function (secao) {
+                        var visivel = !termo || secao.querySelector(".linha-fila:not([style*='none'])");
+                        secao.style.display = visivel ? "" : "none";
+                    });
+                });
+            })();
+        </script>
+    {% else %}
+        <p style="font-size:13px;color:var(--texto-suave);">Nenhum paciente autorizado aguardando profissional hoje.</p>
+    {% endif %}
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Remanejar data — {{ profissional.nome }} — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <style>
+        .tabela-remanejar { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+        .tabela-remanejar th, .tabela-remanejar td { border: 1px solid var(--borda); padding: 6px 10px; text-align: left; }
+        .tabela-remanejar th { background: var(--bg); }
+        .caixa-remanejar {
+            border: 1px solid var(--borda); border-radius: 10px; padding: 14px 16px; margin: 14px 0;
+            background: var(--bg-cartao);
+        }
+        .caixa-sucesso { border-color: var(--marca-escura); }
+    </style>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Remanejar data — {{ profissional.nome }}</h2>
+        <a href="{{ voltar_url }}">← Voltar para as datas</a>
+    </div>
+
+    {% if remanejados is not None %}
+        <div class="caixa-remanejar caixa-sucesso">
+            <strong>Pronto!</strong> O atendimento de {{ profissional.nome }} foi remanejado de
+            <strong>{{ data_antiga|date:"l, d/m/Y" }}</strong> para <strong>{{ data_nova|date:"l, d/m/Y" }}</strong>.
+            {% if remanejados %}
+                Agendamentos levados para a nova data, no mesmo horário: <strong>{{ remanejados|length }}</strong>
+                (todos voltaram para a situação "Agendado"). <strong>Avise cada paciente da nova data.</strong>
+            {% else %}
+                Não havia pacientes agendados na data antiga.
+            {% endif %}
+        </div>
+        {% if remanejados %}
+            <table class="tabela-remanejar">
+                <tr><th>Novo horário</th><th>Paciente</th><th>Telefone</th></tr>
+                {% for agendamento in remanejados %}
+                    <tr>
+                        <td>{{ agendamento.data_hora_inicio|date:"d/m/Y H:i" }}</td>
+                        <td>{{ agendamento.paciente.nome_completo }}</td>
+                        <td>{{ agendamento.paciente.telefone|default:"—" }}</td>
+                    </tr>
+                {% endfor %}
+            </table>
+            <p style="margin-top:10px;"><button type="button" class="botao" onclick="window.print()">Imprimir lista</button></p>
+        {% endif %}
+        <p><a href="{{ voltar_url }}">← Voltar para as datas de {{ profissional.nome }}</a></p>
+    {% else %}
+        <p style="color:var(--texto-suave);margin:6px 0 0;">
+            Use quando o profissional avisou que <strong>não vem mais em {{ data_antiga|date:"d/m/Y" }}</strong> e marcou
+            outra data. O horário dele e <strong>todos os pacientes já agendados</strong> nessa data vão para a nova data,
+            no mesmo horário. Se algum paciente não couber na nova data, nada é alterado.
+        </p>
+
+        <div class="caixa-remanejar">
+            <strong>Data atual: {{ data_antiga|date:"l, d/m/Y" }}</strong>
+            {% for bloco in blocos_antigos %}
+                <div style="font-size:13px;margin-top:4px;">
+                    {{ bloco.get_turno_display }} — {{ bloco.horario_inicio|time:"H:i" }} às {{ bloco.horario_fim|time:"H:i" }}
+                </div>
+            {% endfor %}
+
+            {% if agendamentos %}
+                <table class="tabela-remanejar">
+                    <tr><th>Horário</th><th>Paciente</th><th>Telefone</th><th>Situação</th></tr>
+                    {% for agendamento in agendamentos %}
+                        <tr{% if agendamento in bloqueados %} style="color:#c0392b;font-weight:700;"{% endif %}>
+                            <td>{{ agendamento.data_hora_inicio|time:"H:i" }}</td>
+                            <td>{{ agendamento.paciente.nome_completo }}</td>
+                            <td>{{ agendamento.paciente.telefone|default:"—" }}</td>
+                            <td>{{ agendamento.get_status_display }}</td>
+                        </tr>
+                    {% endfor %}
+                </table>
+            {% else %}
+                <p style="font-size:13px;margin:8px 0 0;"><em>Nenhum paciente agendado nessa data.</em></p>
+            {% endif %}
+        </div>
+
+        {% if not bloqueados %}
+            <form method="post">
+                {% csrf_token %}
+                <div class="campo-bloco" style="max-width:220px;">
+                    <label for="id_data_nova">Nova data</label>
+                    <input type="date" name="data_nova" id="id_data_nova" class="campo" required
+                           value="{% if data_nova %}{{ data_nova|date:'Y-m-d' }}{% endif %}">
+                </div>
+                <div style="margin-top:14px;">
+                    <button type="submit" class="botao" style="background:#b9770e;">Remanejar para a nova data</button>
+                    <a href="{{ voltar_url }}" style="margin-left:12px;">Cancelar</a>
+                </div>
+            </form>
+        {% endif %}
+    {% endif %}
+{% endblock %}

@@ -1,0 +1,220 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Repasse aos profissionais (convênio) — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <style>
+        .grade-stats-financeiro {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin: 0 0 24px;
+        }
+        .cartao-stat-financeiro {
+            background: var(--bg-cartao); border: 1px solid var(--borda); border-radius: 12px;
+            padding: 14px 16px; display: flex; flex-direction: column; gap: 2px;
+        }
+        .cartao-stat-financeiro strong { font-size: 22px; line-height: 1.1; }
+        .cartao-stat-financeiro span { font-size: 12px; color: var(--texto-suave); }
+
+        .nota-filtro { font-size: 11.5px; color: var(--texto-suave); margin-left: auto; }
+        .campo-mes { font-size: 12.5px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--borda); background: var(--bg-cartao); color: var(--texto); font-family: inherit; }
+
+        .cartao-profissional { border: 1px solid var(--borda); border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+        .cartao-profissional[open] > summary { border-bottom: 1px solid var(--borda); }
+        .cartao-profissional summary { list-style: none; cursor: pointer; padding: 12px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .cartao-profissional summary::-webkit-details-marker { display: none; }
+        .cartao-profissional summary .seta { color: var(--texto-suave); font-size: 11px; transition: transform 0.15s ease; }
+        .cartao-profissional[open] summary .seta { transform: rotate(90deg); }
+        .cartao-profissional .nome-prof { font-weight: 700; font-size: 14px; }
+        .cartao-profissional .qtd-planos { font-size: 11.5px; color: var(--texto-suave); }
+        .cartao-profissional .total-prof { margin-left: auto; text-align: right; }
+        .cartao-profissional .total-prof strong { font-size: 15.5px; }
+        .cartao-profissional .total-prof span { display: block; font-size: 10.5px; color: var(--texto-suave); }
+
+        .bloco-convenio { padding: 13px 16px; border-top: 1px solid var(--borda); }
+        .bloco-convenio:first-of-type { border-top: none; }
+        .bloco-convenio.bloco-particular { border-top: 1px dashed var(--borda); background: var(--bg); }
+        .cabecalho-convenio { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 9px; }
+        .nome-convenio { font-weight: 600; font-size: 13px; }
+        .pilula { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; border-radius: 20px; padding: 3px 10px; }
+        .pilula.a-repassar { background: #e8f5ef; color: var(--marca-escura); }
+        .pilula.repassado { background: var(--bg); color: var(--texto-suave); border: 1px solid var(--borda); }
+        html[data-tema="escuro"] .pilula.a-repassar { background: #17332a; }
+
+        table.tabela-repasse { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        table.tabela-repasse th { text-align: right; font-size: 10px; letter-spacing: 0.03em; text-transform: uppercase; color: var(--texto-suave); font-weight: 600; padding: 0 0 6px; border-bottom: 1px solid var(--borda); }
+        table.tabela-repasse th:first-child, table.tabela-repasse td:first-child { text-align: left; }
+        table.tabela-repasse td { padding: 6px 0; border-bottom: 1px dotted var(--borda); }
+        table.tabela-repasse tr:last-child td { border-bottom: none; }
+        table.tabela-repasse tr.linha-total-tabela td { border-top: 1px solid var(--borda); border-bottom: none; font-weight: 700; padding-top: 7px; }
+        table.tabela-repasse td.destaque { font-weight: 700; }
+
+        .nota-bloco { font-size: 11px; color: var(--texto-suave); margin: 8px 0 0; }
+        .rodape-profissional { display: flex; justify-content: flex-end; padding: 12px 16px; border-top: 1px solid var(--borda); background: var(--bg); }
+        .botao-repassar { font: inherit; font-size: 12px; font-weight: 600; padding: 6px 14px; border-radius: 7px; border: 1px solid var(--marca-escura); background: var(--marca); color: #fff; cursor: pointer; }
+        .botao-repassar:hover { background: var(--marca-escura); }
+    </style>
+
+    <div class="relatorio-nav no-imprimir">
+        <a href="?ano={{ mes_anterior_ano }}&mes={{ mes_anterior_mes }}{% if convenio_selecionado %}&convenio={{ convenio_selecionado }}{% endif %}">‹ Mês anterior</a>
+        <input type="month" class="campo-mes" value="{{ ano }}-{{ mes|stringformat:'02d' }}" onchange="
+            var p = new URLSearchParams(window.location.search);
+            var partes = this.value.split('-');
+            p.set('ano', partes[0]); p.set('mes', parseInt(partes[1], 10));
+            window.location.search = p.toString();
+        ">
+        <a href="?ano={{ mes_seguinte_ano }}&mes={{ mes_seguinte_mes }}{% if convenio_selecionado %}&convenio={{ convenio_selecionado }}{% endif %}">Mês seguinte ›</a>
+        <a href="{% url 'financeiro:producao_por_convenio' %}?ano={{ ano }}&mes={{ mes }}" style="margin-left:auto;">Ver produção por convênio deste mês →</a>
+    </div>
+
+    <form method="get" class="barra-filtro no-imprimir">
+        <input type="hidden" name="ano" value="{{ ano }}">
+        <input type="hidden" name="mes" value="{{ mes }}">
+        <strong>Convênio:</strong>
+        <select name="convenio" onchange="this.form.submit()">
+            <option value="">Todos</option>
+            {% for c in convenios %}
+                <option value="{{ c.pk }}" {% if convenio_selecionado == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.nome }}</option>
+            {% endfor %}
+        </select>
+        <span class="nota-filtro">Só aparecem profissionais com atendimento de convênio no mês selecionado.</span>
+    </form>
+
+    <div class="relatorio-pagina">
+        <div class="relatorio-topo">
+            <div class="relatorio-marca">
+                <div class="relatorio-selo">S</div>
+                <div>
+                    <div class="relatorio-nome-clinica">Clínica SMEDIM</div>
+                    <div class="relatorio-subtitulo-marca">Repasse aos profissionais — convênio</div>
+                </div>
+            </div>
+            <div class="relatorio-titulo">
+                <h2>Repasse aos Profissionais</h2>
+                <div class="relatorio-periodo">{{ data_inicio|date:"F \d\e Y"|capfirst }}</div>
+                <div class="relatorio-gerado">Gerado em {% now "d/m/Y" %} às {% now "H:i" %} por {{ user.get_full_name|default:user.username }}</div>
+            </div>
+        </div>
+
+        <div class="grade-stats-financeiro">
+            <div class="cartao-stat-financeiro">
+                <strong class="fonte-num" style="color:var(--marca-escura);">R$ {{ total_a_repassar }}</strong>
+                <span>A repassar</span>
+            </div>
+            <div class="cartao-stat-financeiro">
+                <strong class="fonte-num">R$ {{ total_repassado }}</strong>
+                <span>Já repassado no mês</span>
+            </div>
+            <div class="cartao-stat-financeiro">
+                <strong class="fonte-num">R$ {{ total_bruto }}</strong>
+                <span>Bruto de convênio no mês</span>
+            </div>
+            <div class="cartao-stat-financeiro">
+                <strong class="fonte-num">R$ {{ total_retido }}</strong>
+                <span>Retido pela clínica no mês</span>
+            </div>
+        </div>
+
+        {% for linha in linhas %}
+            <details class="cartao-profissional" open>
+                <summary>
+                    <span class="seta">▶</span>
+                    <span class="nome-prof">{{ linha.profissional.nome }}</span>
+                    <span class="qtd-planos">
+                        {{ linha.convenios|length }} convênio{{ linha.convenios|length|pluralize }}{% if linha.particular %} + particular{% endif %}
+                        · {{ linha.atendimentos }} atendimento{{ linha.atendimentos|pluralize }}
+                    </span>
+                    <span class="total-prof">
+                        {% if linha.a_repassar %}
+                            <strong class="fonte-num">R$ {{ linha.a_repassar }}</strong>
+                            <span>a repassar</span>
+                        {% else %}
+                            <strong class="fonte-num" style="color:var(--texto-suave);">R$ 0,00</strong>
+                            <span>tudo repassado</span>
+                        {% endif %}
+                    </span>
+                </summary>
+
+                {% for grupo in linha.convenios %}
+                    <div class="bloco-convenio">
+                        <div class="cabecalho-convenio">
+                            <span class="nome-convenio">{{ grupo.convenio.nome }}</span>
+                            <span class="pilula {% if grupo.pendente %}a-repassar{% else %}repassado{% endif %}">
+                                {% if grupo.pendente %}a repassar{% else %}repassado{% endif %}
+                            </span>
+                        </div>
+                        <div class="tabela-scroll">
+                            <table class="tabela-repasse">
+                                <thead><tr><th>Procedimento</th><th>Atend.</th><th>Valor</th></tr></thead>
+                                <tbody>
+                                    {% for item in grupo.itens %}
+                                        <tr>
+                                            <td>{{ item.procedimento|default:"—" }}</td>
+                                            <td class="fonte-num">{{ item.qtd }}</td>
+                                            <td class="fonte-num">R$ {{ item.bruto }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                    <tr class="linha-total-tabela">
+                                        <td>Retenção ({{ linha.percentual }}%)</td><td></td>
+                                        <td class="fonte-num">– R$ {{ grupo.retido }}</td>
+                                    </tr>
+                                    <tr class="linha-total-tabela">
+                                        <td>Líquido a repassar</td><td></td>
+                                        <td class="fonte-num destaque">R$ {{ grupo.liquido }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                {% endfor %}
+
+                {% if linha.particular %}
+                    <div class="bloco-convenio bloco-particular">
+                        <div class="cabecalho-convenio">
+                            <span class="nome-convenio">Particular</span>
+                            <span class="pilula repassado">repassado</span>
+                        </div>
+                        <div class="tabela-scroll">
+                            <table class="tabela-repasse">
+                                <thead><tr><th>Procedimento</th><th>Atend.</th><th>Valor</th></tr></thead>
+                                <tbody>
+                                    {% for item in linha.particular %}
+                                        <tr>
+                                            <td>{{ item.procedimento|default:"—" }}</td>
+                                            <td class="fonte-num">{{ item.qtd }}</td>
+                                            <td class="fonte-num">R$ {{ item.valor }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="nota-bloco">
+                            Repasse de particular é controlado no Fechamento diário/mensal (dinheiro no mesmo dia,
+                            cartão/Pix na semana) — aqui é só informativo, não entra em nenhuma soma desta tela.
+                        </p>
+                    </div>
+                {% endif %}
+
+                {% if linha.a_repassar and perms.accounts.financeiro_conciliar %}
+                    <div class="rodape-profissional">
+                        <form method="post" action="{% url 'financeiro:repasse_convenio_marcar_pago' linha.profissional.pk %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="ano" value="{{ ano }}">
+                            <input type="hidden" name="mes" value="{{ mes }}">
+                            <button type="submit" class="botao-repassar">Marcar tudo como repassado (R$ {{ linha.a_repassar }})</button>
+                        </form>
+                    </div>
+                {% endif %}
+            </details>
+        {% empty %}
+            <p style="color:var(--texto-suave);font-size:13px;">Nenhum atendimento de convênio neste mês.</p>
+        {% endfor %}
+
+        <div class="rodape-relatorio"><span>Clínica SMEDIM — documento interno</span><span>{{ data_inicio|date:"m/Y" }}</span></div>
+    </div>
+
+    <button type="button" class="botao-imprimir no-imprimir" onclick="window.print()">🖨️ Imprimir este controle</button>
+
+    <p style="font-size:11.5px;color:var(--texto-suave);line-height:1.6;margin-top:18px;max-width:74ch;" class="no-imprimir">
+        Convênio é sempre tratado como já recebido pela clínica. "Marcar tudo como repassado" paga de uma vez todos os
+        convênios ainda pendentes daquele profissional no mês — não é possível marcar convênio por convênio. O
+        proprietário fica de fora desta lista: produção própria não sofre retenção.
+    </p>
+{% endblock %}

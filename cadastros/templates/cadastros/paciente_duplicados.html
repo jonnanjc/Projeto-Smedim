@@ -1,0 +1,154 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Possíveis duplicados — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Pacientes — possíveis duplicados</h2>
+        <a href="{% url 'cadastros:paciente_lista' %}">← voltar para Pacientes</a>
+    </div>
+
+    <p style="font-size:13px;color:var(--texto-suave);max-width:900px;">
+        Fichas com o <strong>mesmo nome</strong> (sem diferenciar acento e maiúscula — "Fatima" e "Fátima" contam como iguais).
+        Em cada grupo, escolha a <strong>ficha principal</strong> (a que fica) e marque as que são <strong>a mesma pessoa</strong>.
+        Ao unificar, todo o histórico das marcadas (agendamentos, prontuário, documentos, pacotes, guias e produção) passa para a principal,
+        e os dados que faltam nela são completados com os das outras — nada já preenchido na principal é trocado.
+        As fichas juntadas somem da lista de pacientes e da busca; o profissional vê o prontuário completo na ficha principal.
+        Se forem <strong>pessoas diferentes</strong> (homônimos), use "Não são a mesma pessoa" para o grupo sair desta lista.
+    </p>
+
+    <form method="get" style="margin:12px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <input type="hidden" name="tipo" value="{{ tipo }}">
+        <input type="text" name="q" class="campo" style="max-width:320px;" placeholder="Buscar por nome" value="{{ termo }}">
+        <button type="submit" class="botao">Buscar</button>
+        {% if termo %}<a href="?tipo={{ tipo }}">limpar busca</a>{% endif %}
+    </form>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+        <a href="?q={{ termo|urlencode }}" class="botao {% if tipo %}botao-secundario{% endif %}" style="text-decoration:none;{% if tipo %}opacity:.7;{% endif %}">Todos ({{ total }})</a>
+        {% for chave, nome, qtd in tipos %}
+            <a href="?tipo={{ chave }}&q={{ termo|urlencode }}" class="botao" style="text-decoration:none;{% if tipo != chave %}opacity:.7;{% endif %}">{{ nome }} ({{ qtd }})</a>
+        {% endfor %}
+    </div>
+
+    {% for grupo in pagina %}
+        <form method="post" class="grupo-duplicado" style="border:1px solid var(--borda, #ccc);border-radius:8px;padding:12px;margin-bottom:16px;">
+            {% csrf_token %}
+            <input type="hidden" name="acao" value="unificar">
+            <input type="hidden" name="voltar" value="{{ request.get_full_path }}">
+            <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
+                <strong style="text-transform:uppercase;">{{ grupo.chave }}</strong>
+                <span style="font-size:12px;padding:2px 8px;border-radius:10px;{% if grupo.tipo == 'certo' %}background:#d4edda;color:#155724;{% else %}background:#fff3cd;color:#856404;{% endif %}">{{ grupo.tipo_nome }}</span>
+            </div>
+            {% if grupo.cpfs_diferentes %}
+                <div class="mensagem error" style="margin-bottom:8px;">As fichas têm CPFs diferentes. Se for a mesma pessoa, corrija o CPF errado no cadastro antes de unificar.</div>
+            {% endif %}
+            <div style="overflow-x:auto;">
+            <table>
+                <tr>
+                    <th title="A ficha que fica">Principal</th>
+                    <th title="Mesma pessoa: juntar na principal">Juntar</th>
+                    <th>Nome</th>
+                    <th>Nascimento</th>
+                    <th>CPF</th>
+                    <th>Telefone</th>
+                    <th>Convênio</th>
+                    <th>Atendimentos</th>
+                    <th>Prontuário</th>
+                    <th>Último atend.</th>
+                    <th>Origem</th>
+                </tr>
+                {% for item in grupo.fichas %}
+                    {% with f=item.ficha h=item.historico %}
+                    <tr>
+                        <td style="text-align:center;"><input type="radio" name="principal" value="{{ f.pk }}" {% if f.pk == grupo.principal_id %}checked{% endif %}></td>
+                        <td style="text-align:center;"><input type="checkbox" name="juntar" value="{{ f.pk }}" {% if item.marcada %}checked{% endif %} {% if f.pk == grupo.principal_id %}disabled{% endif %}></td>
+                        <td><a href="{% url 'cadastros:paciente_editar' f.pk %}" target="_blank" title="Abrir o cadastro em outra aba">{{ f.nome_completo }}</a>{% if not f.ativo %} <em style="font-size:12px;">(inativo)</em>{% endif %}</td>
+                        <td>{{ f.data_nascimento|date:"d/m/Y"|default:"—" }}</td>
+                        <td>{{ f.cpf|default:"—" }}</td>
+                        <td>{{ f.telefone|default:"—" }}</td>
+                        <td>{{ f.convenio|default:"Particular" }}</td>
+                        <td>{{ h.agendamentos }}</td>
+                        <td>{{ h.prontuario }}</td>
+                        <td>{{ h.ultimo_atendimento|date:"d/m/Y"|default:"—" }}</td>
+                        <td style="font-size:12px;">{% if f.origem_legado_id %}sistema antigo{% else %}cadastrado aqui{% endif %}</td>
+                    </tr>
+                    {% endwith %}
+                {% endfor %}
+            </table>
+            </div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;align-items:center;">
+                <button type="submit" class="botao botao-unificar" {% if grupo.cpfs_diferentes %}disabled title="Corrija o CPF antes"{% endif %}>Unificar marcadas na principal</button>
+                <button type="submit" form="ignorar-{{ forloop.counter }}" class="botao botao-ignorar" style="background:#6c757d;">Não são a mesma pessoa</button>
+            </div>
+            <div class="aviso-grupo" style="display:none;margin-top:8px;font-size:13px;font-weight:600;color:#c0392b;"></div>
+        </form>
+        <form method="post" id="ignorar-{{ forloop.counter }}" class="form-ignorar" style="display:none;">
+            {% csrf_token %}
+            <input type="hidden" name="acao" value="ignorar">
+            <input type="hidden" name="ids" value="{{ grupo.chave_ids }}">
+            <input type="hidden" name="voltar" value="{{ request.get_full_path }}">
+        </form>
+    {% empty %}
+        <p><em>Nenhum possível duplicado encontrado{% if termo or tipo %} com esse filtro{% endif %}.</em></p>
+    {% endfor %}
+    {% include 'accounts/_paginacao.html' %}
+
+    <script>
+        // Confirmação no próprio botão (1º clique pede confirmação, 2º executa), sem
+        // alert/confirm do navegador — alguns navegadores bloqueiam essas janelinhas e o
+        // botão parecia "não ir" (visto no teste de 06/11/2026).
+        (function () {
+            function pedirConfirmacao(botao, textoConfirmar) {
+                if (botao.dataset.confirmando === "1") { return true; }
+                botao.dataset.textoOriginal = botao.textContent;
+                botao.dataset.confirmando = "1";
+                botao.textContent = textoConfirmar;
+                botao.style.background = "#c0392b";
+                setTimeout(function () {
+                    if (botao.dataset.confirmando === "1") {
+                        botao.dataset.confirmando = "";
+                        botao.textContent = botao.dataset.textoOriginal;
+                        botao.style.background = botao.classList.contains("botao-ignorar") ? "#6c757d" : "";
+                    }
+                }, 6000);
+                return false;
+            }
+
+            document.querySelectorAll(".grupo-duplicado").forEach(function (form, indice) {
+                var aviso = form.querySelector(".aviso-grupo");
+                var botaoUnificar = form.querySelector(".botao-unificar");
+                function atualizar() {
+                    var principal = form.querySelector("input[name=principal]:checked");
+                    form.querySelectorAll("input[name=juntar]").forEach(function (caixa) {
+                        var ehPrincipal = principal && caixa.value === principal.value;
+                        caixa.disabled = ehPrincipal;
+                        if (ehPrincipal) { caixa.checked = false; }
+                    });
+                }
+                form.querySelectorAll("input[name=principal]").forEach(function (radio) {
+                    radio.addEventListener("change", atualizar);
+                });
+                form.addEventListener("submit", function (evento) {
+                    var marcadas = form.querySelectorAll("input[name=juntar]:checked").length;
+                    aviso.style.display = "none";
+                    if (!marcadas) {
+                        evento.preventDefault();
+                        aviso.textContent = "Marque em \"Juntar\" pelo menos uma ficha que é a mesma pessoa da principal.";
+                        aviso.style.display = "block";
+                        return;
+                    }
+                    if (!pedirConfirmacao(botaoUnificar, "Confirmar: juntar " + marcadas + " ficha(s) na principal")) {
+                        evento.preventDefault();
+                    }
+                });
+                var formIgnorar = document.getElementById("ignorar-" + (indice + 1));
+                var botaoIgnorar = form.querySelector(".botao-ignorar");
+                if (formIgnorar && botaoIgnorar) {
+                    formIgnorar.addEventListener("submit", function (evento) {
+                        if (!pedirConfirmacao(botaoIgnorar, "Confirmar: são pessoas diferentes")) { evento.preventDefault(); }
+                    });
+                }
+            });
+        })();
+    </script>
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Prontuários — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <h2 style="margin:0 0 4px;">Prontuários</h2>
+    <p style="color:var(--texto-suave);margin:0 0 12px;font-size:13px;">
+        Busque um paciente para abrir o prontuário — não precisa ser um atendimento marcado como realizado hoje.
+    </p>
+
+    <form method="get" style="margin:16px 0;">
+        <input type="text" name="q" class="campo" style="max-width:320px;display:inline-block;" placeholder="Buscar por nome ou CPF" value="{{ termo }}">
+        <button type="submit" class="botao">Buscar</button>
+    </form>
+
+    <table>
+        <tr>
+            <th>Nome</th>
+            <th>CPF</th>
+            <th>Convênio</th>
+            <th></th>
+        </tr>
+        {% for paciente in pagina %}
+            <tr>
+                <td>{{ paciente.nome_completo }}</td>
+                <td>{{ paciente.cpf|default:"—" }}</td>
+                <td>{{ paciente.convenio|default:"Particular" }}</td>
+                <td><a href="{% url 'prontuario:prontuario_paciente' paciente.pk %}">Prontuário</a></td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="4"><em>Nenhum paciente encontrado.</em></td></tr>
+        {% endfor %}
+    </table>
+{% include 'accounts/_paginacao.html' %}
+{% endblock %}

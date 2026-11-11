@@ -1,0 +1,109 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Horários de atendimento — {{ profissional.nome }} — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <style>
+        .grade-horarios-prof { width: 100%; border-collapse: collapse; margin-top: 16px; }
+        .grade-horarios-prof th, .grade-horarios-prof td {
+            border: 1px solid var(--borda); padding: 10px 12px; vertical-align: top; font-size: 14px;
+        }
+        .grade-horarios-prof th { background: var(--bg); text-align: left; }
+        .grade-horarios-prof td.coluna-dia { font-weight: 700; white-space: nowrap; background: var(--bg); }
+        .bloco-turno { display: flex; flex-direction: column; gap: 8px; min-width: 190px; }
+        .bloco-turno label.rotulo-turno { display: flex; align-items: center; gap: 6px; font-weight: 600; cursor: pointer; }
+        .linha-horas { display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--texto-suave); }
+        .linha-horas .campo-hora-range { display: flex; align-items: center; gap: 6px; }
+        .linha-horas input[type="time"] {
+            border: 1px solid var(--borda); border-radius: 6px; padding: 4px 6px; font-size: 13px;
+            background: var(--bg-cartao); color: var(--texto); width: 92px;
+        }
+        .linha-horas.desativado { opacity: 0.4; pointer-events: none; }
+        .rotulo-procedimentos { display: block; font-size: 11px; color: var(--texto-suave); margin-bottom: 4px; }
+        .lista-procedimentos-bloco { display: flex; flex-direction: column; gap: 3px; max-height: 130px; overflow-y: auto; }
+        .chip-procedimento { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 400; cursor: pointer; }
+    </style>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Horários de atendimento — {{ profissional.nome }}</h2>
+        <a href="{{ voltar_url }}">← Voltar para Profissionais</a>
+    </div>
+    <p style="color:var(--texto-suave);margin:6px 0 0;">
+        Marque os dias e turnos em que {{ profissional.nome }} atende. Os horários já vêm sugeridos (manhã 8h–12h,
+        tarde 14h–18h, noite 18h–20h — noite geralmente só para fisioterapeutas), mas você pode ajustar o início e o
+        término de cada bloco. Se quiser que um bloco só sirva pra procedimentos específicos (ex: só "USG" na
+        segunda de manhã), marque os procedimentos abaixo do horário — deixe tudo desmarcado para permitir qualquer
+        procedimento nesse bloco. Só aparecem aqui os procedimentos em que {{ profissional.nome }} está habilitado
+        (em Cadastros → Procedimentos); todo procedimento marcado como "é um tipo de ultrassom (USG)" aparece
+        agrupado num único item "USG". A clínica só funciona de segunda a sexta. Precisa de um ajuste só para um dia
+        específico (uma exceção)? Ou o profissional não tem dia fixo e só vem em datas marcadas no mês? Use a tela de
+        <a href="{% url 'cadastros:profissional_excecoes' profissional.pk %}">Datas específicas / exceções</a> em vez
+        de mexer aqui no horário fixo (nesse segundo caso, deixe esta grade toda em branco).
+    </p>
+
+    <form method="post">
+        {% csrf_token %}
+        <table class="grade-horarios-prof">
+            <tr>
+                <th style="width:130px;">Dia</th>
+                <th>Manhã</th>
+                <th>Tarde</th>
+                <th>Noite</th>
+            </tr>
+            {% for linha in grade %}
+                <tr>
+                    <td class="coluna-dia">{{ linha.rotulo }}</td>
+                    {% for coluna in linha.colunas %}
+                        <td>
+                            <div class="bloco-turno">
+                                <label class="rotulo-turno">
+                                    <input type="checkbox" name="ativo_{{ coluna.chave }}"
+                                           onchange="document.getElementById('horas-{{ coluna.chave }}').classList.toggle('desativado', !this.checked)"
+                                           {% if coluna.marcado %}checked{% endif %}>
+                                    {{ coluna.turno.label }}
+                                </label>
+                                <div class="linha-horas{% if not coluna.marcado %} desativado{% endif %}" id="horas-{{ coluna.chave }}">
+                                    <div class="campo-hora-range">
+                                        <input type="time" name="inicio_{{ coluna.chave }}" value="{{ coluna.inicio }}">
+                                        <span>às</span>
+                                        <input type="time" name="fim_{{ coluna.chave }}" value="{{ coluna.fim }}">
+                                    </div>
+                                    {% if procedimentos_normais or tem_usg %}
+                                        <div>
+                                            <span class="rotulo-procedimentos">Procedimentos (vazio = qualquer um):</span>
+                                            <div class="lista-procedimentos-bloco">
+                                                {% if tem_usg %}
+                                                    <label class="chip-procedimento">
+                                                        <input type="checkbox" name="procedimentos_{{ coluna.chave }}" value="usg"
+                                                               {% if coluna.usg_marcado %}checked{% endif %}>
+                                                        USG (ultrassom)
+                                                    </label>
+                                                {% endif %}
+                                                {% for procedimento in procedimentos_normais %}
+                                                    <label class="chip-procedimento">
+                                                        <input type="checkbox" name="procedimentos_{{ coluna.chave }}" value="{{ procedimento.pk }}"
+                                                               {% if procedimento.pk in coluna.procedimentos_selecionados %}checked{% endif %}>
+                                                        {{ procedimento.nome }}
+                                                    </label>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    {% else %}
+                                        <span class="rotulo-procedimentos">
+                                            Nenhum procedimento vinculado a {{ profissional.nome }} ainda —
+                                            <a href="{% url 'cadastros:procedimento_lista' %}">cadastre em Procedimentos</a>.
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+        </table>
+
+        <div style="margin-top:18px;display:flex;gap:10px;">
+            <button type="submit" class="botao">Salvar horários</button>
+            <a href="{{ voltar_url }}" class="botao" style="background:var(--texto-suave);text-decoration:none;">Cancelar</a>
+        </div>
+    </form>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends "fila/base_totem.html" %}
+
+{% block conteudo %}
+    <h1 class="totem-titulo">Bem-vindo(a)!</h1>
+    <p class="totem-subtitulo">Toque na especialidade que você veio buscar hoje.</p>
+
+    {% if especialidades %}
+        <div class="grade-motivos">
+            {% for chave, rotulo, emoji in especialidades %}
+                <a href="{% url 'fila:totem_tipo' %}?especialidade={{ chave|urlencode }}" class="cartao-motivo">
+                    <span class="icone">{{ emoji }}</span>
+                    <span>{{ rotulo }}</span>
+                </a>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="totem-subtitulo">No momento não há nenhuma especialidade com atendimento hoje.<br>Por favor, procure a recepção.</p>
+    {% endif %}
+
+    {% if exames %}
+        <p style="font-size:19px;color:var(--texto-suave);text-align:center;margin:0;">Ou, se você veio só para um exame agendado:</p>
+        <div class="grade-motivos">
+            {% for exame in exames %}
+                <a href="{% url 'fila:totem_tipo' %}?especialidade={{ exame.especialidade_chave|urlencode }}&procedimento={{ exame.procedimento_id }}" class="cartao-motivo">
+                    <span class="icone">{{ exame.emoji }}</span>
+                    <span>{{ exame.nome }}</span>
+                </a>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endblock %}

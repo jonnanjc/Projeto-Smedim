@@ -1,0 +1,119 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}{{ titulo }} — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <h2>{{ titulo }}</h2>
+    <form method="post">
+        {% csrf_token %}
+        {% for campo in form %}
+            <div class="campo-bloco">
+                {{ campo.label_tag }}
+                {{ campo }}
+                {% if campo.help_text %}<div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">{{ campo.help_text }}</div>{% endif %}
+                {% for erro in campo.errors %}
+                    <div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+        {% for erro in form.non_field_errors %}
+            <div class="mensagem error">{{ erro }}</div>
+        {% endfor %}
+
+        <div class="campo-bloco">
+            <label>O que o pacote inclui</label>
+            <div style="font-size:12px;color:var(--texto-suave);margin-bottom:8px;">
+                Um procedimento por linha, com quantas vezes ele entra no pacote (ex.: Consulta 1 + Eletrocardiograma 1,
+                ou Sessão 10). Mudar o pacote aqui vale só para as próximas vendas — o que já foi vendido não muda.
+            </div>
+            {{ formset.management_form }}
+            {% for erro in formset.non_form_errors %}
+                <div class="mensagem error" style="margin-bottom:6px;">{{ erro }}</div>
+            {% endfor %}
+            <div id="itens-formset">
+                {% for item_form in formset %}
+                    <div class="linha-item-pacote" style="display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;padding:10px;border:1px solid var(--borda);border-radius:8px;flex-wrap:wrap;">
+                        {{ item_form.id }}
+                        <div style="flex:2;min-width:220px;">
+                            <div style="font-size:12px;color:var(--texto-suave);">Procedimento</div>
+                            {{ item_form.procedimento }}
+                            {% for erro in item_form.procedimento.errors %}<div class="mensagem error" style="margin-top:4px;">{{ erro }}</div>{% endfor %}
+                        </div>
+                        <div style="flex:1;min-width:120px;">
+                            <div style="font-size:12px;color:var(--texto-suave);">Quantidade</div>
+                            {{ item_form.quantidade }}
+                            {% for erro in item_form.quantidade.errors %}<div class="mensagem error" style="margin-top:4px;">{{ erro }}</div>{% endfor %}
+                        </div>
+                        <div style="display:none;">{{ item_form.DELETE }}</div>
+                        <button type="button" class="botao-remover-linha" style="white-space:nowrap;align-self:flex-end;">Remover</button>
+                        {% for erro in item_form.non_field_errors %}<div class="mensagem error" style="margin-top:4px;flex-basis:100%;">{{ erro }}</div>{% endfor %}
+                    </div>
+                {% endfor %}
+            </div>
+            <button type="button" id="botao-add-item" class="botao" style="margin-top:4px;">+ Adicionar procedimento</button>
+
+            <div id="template-item-vazio" style="display:none;">
+                <div class="linha-item-pacote" style="display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;padding:10px;border:1px solid var(--borda);border-radius:8px;flex-wrap:wrap;">
+                    {{ formset.empty_form.id }}
+                    <div style="flex:2;min-width:220px;"><div style="font-size:12px;color:var(--texto-suave);">Procedimento</div>{{ formset.empty_form.procedimento }}</div>
+                    <div style="flex:1;min-width:120px;"><div style="font-size:12px;color:var(--texto-suave);">Quantidade</div>{{ formset.empty_form.quantidade }}</div>
+                    <button type="button" class="botao-remover-linha" style="white-space:nowrap;align-self:flex-end;">Remover</button>
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" class="botao">Salvar</button>
+        <a href="{{ voltar_url }}" style="margin-left:12px;">Cancelar</a>
+    </form>
+
+    {{ habilitados_por_profissional|json_script:"habilitados-por-profissional" }}
+    <script>
+        (function () {
+            var contentor = document.getElementById("itens-formset");
+            var template = document.getElementById("template-item-vazio");
+            var totalInput = document.getElementById("id_itens-TOTAL_FORMS");
+
+            function adicionarLinha() {
+                var indice = parseInt(totalInput.value, 10);
+                var wrapper = document.createElement("div");
+                wrapper.innerHTML = template.innerHTML.split("__prefix__").join(String(indice));
+                contentor.appendChild(wrapper.firstElementChild);
+                totalInput.value = String(indice + 1);
+            }
+
+            document.getElementById("botao-add-item").addEventListener("click", adicionarLinha);
+            contentor.addEventListener("click", function (evento) {
+                if (!evento.target.matches(".botao-remover-linha")) { return; }
+                var linha = evento.target.closest(".linha-item-pacote");
+                var campoId = linha.querySelector("input[name$='-id']");
+                if (campoId && campoId.value) {
+                    var checkboxDelete = linha.querySelector("input[name$='-DELETE']");
+                    if (checkboxDelete) { checkboxDelete.checked = true; }
+                    linha.style.display = "none";
+                } else {
+                    linha.remove();
+                }
+            });
+            // Pacote novo já abre com uma linha pronta pra preencher.
+            if (!contentor.querySelector(".linha-item-pacote")) { adicionarLinha(); }
+
+            // Profissional escolhido: só os procedimentos habilitados para ele aparecem
+            // (a trava de verdade é no servidor, cadastros.forms._PacoteItemFormSetBase).
+            var habilitados = JSON.parse(document.getElementById("habilitados-por-profissional").textContent);
+            var selectProfissional = document.getElementById("id_profissional");
+            function filtrarProcedimentos() {
+                var profissionalId = selectProfissional ? selectProfissional.value : "";
+                var permitidos = profissionalId ? (habilitados[profissionalId] || []).map(String) : null;
+                document.querySelectorAll("select[name$='-procedimento']").forEach(function (select) {
+                    Array.prototype.forEach.call(select.options, function (opcao) {
+                        var mostrar = !opcao.value || !permitidos || permitidos.indexOf(opcao.value) !== -1;
+                        opcao.hidden = !mostrar;
+                        opcao.disabled = !mostrar && !opcao.selected;
+                    });
+                });
+            }
+            if (selectProfissional) { selectProfissional.addEventListener("change", filtrarProcedimentos); }
+            document.getElementById("botao-add-item").addEventListener("click", filtrarProcedimentos);
+            filtrarProcedimentos();
+        })();
+    </script>
+{% endblock %}

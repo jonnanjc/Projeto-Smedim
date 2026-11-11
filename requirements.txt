@@ -1,0 +1,20 @@
+# Para testar localmente no seu PC, estas linhas já bastam
+# (o projeto usa SQLite por padrão, sem precisar instalar banco de dados).
+Django>=5.0,<6.0
+python-dotenv>=1.0
+
+# Usado pelos Cadastros (Etapa 3) para gerar/ler planilhas .xlsx (modelo de
+# preços e importação de tabela de preços por convênio). Necessário mesmo em
+# ambiente de teste.
+openpyxl>=3.1
+
+# Necessário para o upload de foto de perfil (Usuario.foto é um ImageField —
+# o Django exige Pillow instalado pra processar/validar imagens).
+Pillow>=10.0
+
+# Necessário só quando for rodar com PostgreSQL (ex: no servidor da clínica).
+psycopg2-binary>=2.9
+
+# Necessário só para rodar em modo "produção" (servidor de aplicação), no
+# servidor Linux da clínica (ver README.md — Gunicorn + Nginx + systemd).
+gunicorn>=21.0

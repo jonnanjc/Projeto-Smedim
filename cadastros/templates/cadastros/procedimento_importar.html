@@ -1,0 +1,31 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Importar procedimentos — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <p><a href="{% url 'cadastros:procedimento_lista' %}">← Voltar para procedimentos</a></p>
+    <h2>Importar planilha de procedimentos</h2>
+
+    <p>
+        Envie um arquivo <strong>.xlsx</strong> ou <strong>.csv</strong> com até três colunas:
+        <strong>Procedimento</strong> (nome), <strong>Código</strong> (TUSS/TISS/CBHPM, se houver — opcional) e
+        <strong>Valor particular</strong> (opcional). Procedimentos com o mesmo nome de um já cadastrado não são
+        duplicados: o código só é preenchido se estava em branco, mas o <strong>valor particular é atualizado
+        sempre</strong> que a planilha trouxer um valor — baixe o catálogo atual, edite os valores e reimporte
+        pra alterar em massa.
+    </p>
+    <p><a href="{% url 'cadastros:baixar_planilha_procedimentos' %}">⬇ Baixar planilha do catálogo atual (para conferir/completar)</a></p>
+
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="campo-bloco">
+            {{ form.arquivo.label_tag }}
+            {{ form.arquivo }}
+            {% if form.arquivo.help_text %}<div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">{{ form.arquivo.help_text }}</div>{% endif %}
+            {% for erro in form.arquivo.errors %}
+                <div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>
+            {% endfor %}
+        </div>
+        <button type="submit" class="botao">Importar</button>
+        <a href="{% url 'cadastros:procedimento_lista' %}" style="margin-left:12px;">Cancelar</a>
+    </form>
+{% endblock %}

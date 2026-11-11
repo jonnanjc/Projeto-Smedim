@@ -1,0 +1,195 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Início — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <style>
+        .saudacao-inicio { margin: 0 0 20px; }
+        .saudacao-inicio h2 { margin: 0 0 4px; }
+        .saudacao-inicio p { margin: 0; color: var(--texto-suave); font-size: 13px; }
+
+        .faixa-agora {
+            display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+            background: linear-gradient(120deg, var(--marca-escura), #1f5a41);
+            color: #eafff4; border-radius: 12px; padding: 16px 20px; margin-bottom: 20px;
+        }
+        html[data-tema="escuro"] .faixa-agora { background: linear-gradient(120deg, #1c4632, #12291d); }
+        .faixa-agora .rotulo-agora {
+            font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase;
+            color: #a8e6c8; margin-bottom: 4px; font-weight: 700;
+        }
+        .faixa-agora .texto-agora { font-size: 16px; font-weight: 700; }
+        .faixa-agora .texto-agora span { font-weight: 400; color: #c3ecd7; }
+        .botao-agora {
+            background: #ffffff; color: var(--marca-escura) !important; border-radius: 8px;
+            padding: 9px 16px; font-size: 13px; font-weight: 700; text-decoration: none;
+            white-space: nowrap;
+        }
+        .botao-agora:hover { background: #eafff4; text-decoration: none; }
+
+        .grade-atalhos-inicio {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px;
+        }
+        .cartao-atalho-inicio {
+            background: var(--bg-cartao); border: 1px solid var(--borda); border-radius: 12px;
+            padding: 18px; display: flex; flex-direction: column; gap: 8px; text-decoration: none; color: var(--texto);
+        }
+        .cartao-atalho-inicio:hover { border-color: var(--marca); }
+        .cartao-atalho-inicio .icone-atalho { font-size: 26px; }
+        .cartao-atalho-inicio strong { font-size: 14px; }
+        .cartao-atalho-inicio span { font-size: 12px; color: var(--texto-suave); }
+
+        .grade-stats-inicio {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-bottom: 22px;
+        }
+        .cartao-stat-inicio {
+            background: var(--bg-cartao); border: 1px solid var(--borda); border-radius: 12px;
+            padding: 14px 16px; display: flex; flex-direction: column; gap: 2px;
+        }
+        .cartao-stat-inicio strong { font-size: 26px; line-height: 1.1; }
+        .cartao-stat-inicio span { font-size: 12px; color: var(--texto-suave); }
+    </style>
+
+    <div class="saudacao-inicio">
+        <h2>Olá, {{ user.get_full_name|default:user.username }}!</h2>
+        {% now "l, d \d\e F \d\e Y" as data_hoje %}
+        <p>{{ data_hoje|capfirst }}</p>
+    </div>
+
+    {% if proximo_atendimento %}
+        <div class="faixa-agora">
+            <div>
+                <div class="rotulo-agora">Agora</div>
+                <div class="texto-agora">
+                    {{ proximo_atendimento.data_hora_inicio|date:"H:i" }} · {{ proximo_atendimento.paciente.nome_completo }}
+                    <span>— {{ proximo_atendimento.get_status_display }}</span>
+                </div>
+            </div>
+            {% comment %}
+                A faixa é do próprio profissional: vai pra "Minha agenda". A Agenda do dia
+                geral exige permissão de recepção e dava 403 pro perfil Profissional.
+            {% endcomment %}
+            {% if perms.accounts.agenda_ver_propria %}
+                <a href="{% url 'agenda:agenda_propria' %}" class="botao-agora">Ver agenda do dia →</a>
+            {% else %}
+                <a href="{% url 'agenda:agenda_dia' %}" class="botao-agora">Ver agenda do dia →</a>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    {% if stats_profissional %}
+        <h3 style="margin:0 0 10px;font-size:14px;color:var(--texto-suave);">Seus atendimentos de hoje</h3>
+        <div class="grade-stats-inicio">
+            <div class="cartao-stat-inicio">
+                <strong>{{ stats_profissional.agendados }}</strong>
+                <span>Agendados</span>
+            </div>
+            <div class="cartao-stat-inicio">
+                <strong>{{ stats_profissional.pre_confirmados }}</strong>
+                <span>Pré-confirmados</span>
+            </div>
+            <div class="cartao-stat-inicio">
+                <strong>{{ stats_profissional.confirmados }}</strong>
+                <span>Confirmados</span>
+            </div>
+            <div class="cartao-stat-inicio">
+                <strong style="color:var(--marca-escura);">{{ stats_profissional.atendidos }}</strong>
+                <span>Já atendidos</span>
+            </div>
+            <div class="cartao-stat-inicio">
+                <strong style="color:var(--marca-escura);">{{ stats_profissional.procedimentos }}</strong>
+                <span>Procedimentos realizados</span>
+            </div>
+            <div class="cartao-stat-inicio">
+                <strong>{{ stats_profissional.total }}</strong>
+                <span>Total do dia</span>
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="grade-atalhos-inicio">
+        {% if perms.accounts.agenda_ver_dia or perms.accounts.agenda_criar or perms.accounts.agenda_editar %}
+            <a class="cartao-atalho-inicio" href="{% url 'agenda:agenda_dia' %}">
+                <span class="icone-atalho">📅</span>
+                <strong>Agenda do dia</strong>
+                <span>Ver os atendimentos de hoje</span>
+            </a>
+        {% endif %}
+        {% if perms.accounts.central_atendimento_usar %}
+            <a class="cartao-atalho-inicio" href="{% url 'agenda:central_atendimento' %}">
+                <span class="icone-atalho">☎️</span>
+                <strong>Central de Atendimento</strong>
+                <span>Agendar por telefone</span>
+            </a>
+        {% endif %}
+        {% if perms.accounts.agenda_ver_propria %}
+            <a class="cartao-atalho-inicio" href="{% url 'agenda:agenda_propria' %}">
+                <span class="icone-atalho">🗓️</span>
+                <strong>Minha agenda</strong>
+                <span>Seus atendimentos</span>
+            </a>
+        {% endif %}
+        {% if perms.accounts.paciente_cadastrar %}
+            <a class="cartao-atalho-inicio" href="{% url 'cadastros:paciente_lista' %}">
+                <span class="icone-atalho">🧑‍🤝‍🧑</span>
+                <strong>Pacientes</strong>
+                <span>Buscar ou cadastrar</span>
+            </a>
+        {% endif %}
+        {% if perms.accounts.profissional_gerenciar %}
+            <a class="cartao-atalho-inicio" href="{% url 'cadastros:profissional_lista' %}">
+                <span class="icone-atalho">🩺</span>
+                <strong>Profissionais</strong>
+                <span>Equipe e especialidades</span>
+            </a>
+        {% endif %}
+        {% if perms.accounts.procedimento_gerenciar %}
+            <a class="cartao-atalho-inicio" href="{% url 'cadastros:procedimento_lista' %}">
+                <span class="icone-atalho">🧾</span>
+                <strong>Procedimentos</strong>
+                <span>Catálogo de procedimentos</span>
+            </a>
+        {% endif %}
+        {% if perms.accounts.convenio_gerenciar %}
+            <a class="cartao-atalho-inicio" href="{% url 'cadastros:convenio_lista' %}">
+                <span class="icone-atalho">💳</span>
+                <strong>Convênios</strong>
+                <span>Tabelas de preços</span>
+            </a>
+        {% endif %}
+        {% if perms.accounts.financeiro_ver_painel %}
+            <a class="cartao-atalho-inicio" href="{% url 'financeiro:painel' %}">
+                <span class="icone-atalho">💰</span>
+                <strong>Financeiro</strong>
+                <span>Painel geral e contas a receber</span>
+            </a>
+        {% endif %}
+        {% if perms.accounts.usuario_gerenciar %}
+            <a class="cartao-atalho-inicio" href="{% url 'usuario_lista' %}">
+                <span class="icone-atalho">👤</span>
+                <strong>Usuários</strong>
+                <span>Gerenciar acessos</span>
+            </a>
+        {% endif %}
+        {% if request.user.is_superuser %}
+            <a class="cartao-atalho-inicio" href="{% url 'perfil_lista' %}">
+                <span class="icone-atalho">🔑</span>
+                <strong>Perfis</strong>
+                <span>Perfis e permissões</span>
+            </a>
+        {% endif %}
+        {% if user.profissional_id %}
+            <a class="cartao-atalho-inicio" href="{% url 'prontuario:prontuario_lista' %}">
+                <span class="icone-atalho">📋</span>
+                <strong>Prontuários</strong>
+                <span>Buscar prontuário de um paciente</span>
+            </a>
+        {% endif %}
+        {% if perms.accounts.mensagem_usar %}
+            <a class="cartao-atalho-inicio" href="{% url 'mensagens:lista_conversas' %}">
+                <span class="icone-atalho">💬</span>
+                <strong>Mensagens</strong>
+                <span>Chat interno entre usuários</span>
+            </a>
+        {% endif %}
+    </div>
+{% endblock %}

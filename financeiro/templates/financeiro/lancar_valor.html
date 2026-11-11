@@ -1,0 +1,33 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Lançar valor do convênio — Clínica SMEDIM{% endblock %}
+{% block conteudo %}
+    <h2>Lançar valor do convênio</h2>
+    <p style="color:var(--texto-suave);">
+        {{ agendamento.paciente.nome_completo }} — {{ agendamento.profissional.nome }} —
+        {{ agendamento.data_hora_inicio|date:"d/m/Y H:i" }} — convênio {{ agendamento.convenio.nome }}.
+        Não havia preço configurado pra esse procedimento/convênio (Cadastros → Convênios → Tabela de
+        preços) — preencha manualmente quanto a clínica tem a receber por este atendimento.
+    </p>
+    <form method="post">
+        {% csrf_token %}
+        {% for form_item in forms_itens %}
+            {% for campo in form_item %}
+                <div class="campo-bloco">
+                    {{ campo.label_tag }}
+                    {{ campo }}
+                    {% if campo.help_text %}<div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">{{ campo.help_text }}</div>{% endif %}
+                    {% for erro in campo.errors %}
+                        <div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+            {% if form_item.non_field_errors %}
+                {% for erro in form_item.non_field_errors %}
+                    <div class="mensagem error">{{ erro }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endfor %}
+        <button type="submit" class="botao">Salvar</button>
+        <a href="{{ voltar_url }}" style="margin-left:12px;">Cancelar</a>
+    </form>
+{% endblock %}

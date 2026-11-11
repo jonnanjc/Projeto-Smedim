@@ -1,0 +1,21 @@
+{% extends "documentos/documento_imprimir_base.html" %}
+{% block titulo %}Receituário — {{ paciente.nome_completo }} — Clínica SMEDIM{% endblock %}
+{% block corpo_documento %}
+    <div class="documento-titulo">Receituário</div>
+    <div class="documento-paciente-linha">
+        Paciente: <strong>{{ paciente.nome_completo }}</strong>{% if idade is not None %} &middot; {{ idade }} anos{% endif %}
+    </div>
+    <div class="documento-itens">
+        {% for item in documento.itens.all %}
+            <div class="documento-item">
+                <span class="num">{{ forloop.counter|stringformat:"02d" }}</span><span class="nome">{{ item.descricao }}</span>
+                {% if item.posologia %}<div class="posologia">{{ item.posologia }}</div>{% endif %}
+            </div>
+        {% empty %}
+            <p style="color:var(--doc-texto-suave);">Nenhum item informado.</p>
+        {% endfor %}
+    </div>
+    {% if documento.observacoes %}
+        <div class="documento-observacoes">{{ documento.observacoes|linebreaksbr }}</div>
+    {% endif %}
+{% endblock %}

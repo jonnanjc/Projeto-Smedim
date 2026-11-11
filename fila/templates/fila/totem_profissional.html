@@ -1,0 +1,21 @@
+{% extends "fila/base_totem.html" %}
+
+{% block conteudo %}
+    <h1 class="totem-titulo">Com qual profissional?</h1>
+    <p class="totem-subtitulo">{{ rotulo_especialidade }} — toque no nome do profissional que vai atender você.</p>
+
+    <div class="grade-motivos">
+        {% for profissional in profissionais %}
+            <a href="{% url 'fila:totem_tipo' %}?especialidade={{ especialidade|urlencode }}&profissional={{ profissional.pk }}" class="cartao-motivo">
+                <span class="icone">🩺</span>
+                <span>{{ profissional.nome }}</span>
+            </a>
+        {% endfor %}
+        <a href="{% url 'fila:totem_tipo' %}?especialidade={{ especialidade|urlencode }}&profissional=0" class="cartao-motivo">
+            <span class="icone">❔</span>
+            <span>Não sei / qualquer um</span>
+        </a>
+    </div>
+
+    <a href="{% url 'fila:totem_inicio' %}" class="link-voltar">‹ Voltar</a>
+{% endblock %}

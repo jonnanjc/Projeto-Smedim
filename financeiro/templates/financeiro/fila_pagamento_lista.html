@@ -1,0 +1,40 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Fila de pagamento — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <h2 style="margin:0;">Fila de pagamento</h2>
+    <p style="font-size:13px;color:var(--texto-suave);">
+        Atendimentos que a recepção encaminhou pra pagamento — registre o pagamento (ou marque como
+        cortesia) pra autorizar cada um. Some assim que processado, não é um histórico.
+    </p>
+
+    <table>
+        <tr>
+            <th>Data</th>
+            <th>Paciente</th>
+            <th>Profissional</th>
+            <th>Procedimento</th>
+            <th>Forma de atendimento</th>
+            <th></th>
+        </tr>
+        {% for agendamento in pagina %}
+            <tr>
+                <td>{{ agendamento.data_hora_inicio|date:"d/m/Y H:i" }}</td>
+                <td>{{ agendamento.paciente.nome_completo }}</td>
+                <td>{{ agendamento.profissional.nome }}</td>
+                <td>{{ agendamento.itens_resumo }}</td>
+                <td>
+                    {% if agendamento.forma_atendimento == "CONVENIO" %}
+                        Convênio ({{ agendamento.convenio|default:"—" }}) — pago na hora
+                    {% else %}
+                        Particular
+                    {% endif %}
+                </td>
+                <td><a href="{% url 'agenda:agendamento_confirmar_pagamento' agendamento.pk %}" class="botao-mini" style="text-decoration:none;">Registrar pagamento</a></td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="6"><em>Nenhum atendimento aguardando pagamento no momento.</em></td></tr>
+        {% endfor %}
+    </table>
+{% include 'accounts/_paginacao.html' %}
+{% endblock %}

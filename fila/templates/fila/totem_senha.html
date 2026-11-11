@@ -1,0 +1,82 @@
+{% extends "fila/base_totem.html" %}
+{% load static %}
+
+{% block estilo_extra %}
+    .numero-senha { font-size: 130px; font-weight: 800; color: var(--marca-escura); line-height: 1; letter-spacing: 2px; }
+    .confirmacao-senha { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+    .especialidade-senha { font-size: 22px; font-weight: 600; color: var(--texto); margin: 0; }
+    .selo-prioridade {
+        display: inline-block; background: var(--secundario); color: #fff; font-weight: 700;
+        padding: 6px 18px; border-radius: 20px; font-size: 20px; margin-top: 2px;
+    }
+    .aviso-impressao { font-size: 18px; color: var(--texto-suave); margin-top: 14px; }
+    .aviso-erro-impressora { font-size: 15px; color: var(--erro); background: var(--erro-bg); padding: 10px 18px; border-radius: 10px; margin-top: 6px; }
+
+    /* Papel impresso: some da tela; só aparece dentro de @media print. */
+    .ticket-impressao { display: none; }
+
+    @media print {
+        /* Sem "size": o tamanho vem do papel padrão do driver da ELGIN i8,
+           que precisa estar em "80(72.1) x 3276 mm" (rolo) — com ele o
+           driver corta logo depois do conteúdo. Forçar um tamanho aqui
+           (ex.: 80x60mm) fazia o Chrome encolher/centralizar o ticket no
+           papel do driver e sair metro de papel em branco. */
+        @page { margin: 0; }
+        /* O layout do totem (base_totem.html) ocupa a tela inteira (100vh) e
+           tem logo + rodapé — no papel isso virava um ticket enorme com logo
+           e "Toque na tela..." em cinza (térmica imprime cinza pontilhado,
+           por isso parecia apagado). Na impressão sai só o .ticket-impressao. */
+        html, body { height: auto !important; overflow: visible !important; background: #fff !important; }
+        .totem-tela, .totem-corpo { display: block !important; min-height: 0 !important; padding: 0 !important; gap: 0 !important; }
+        .totem-logo, .totem-rodape, .no-imprimir { display: none !important; }
+        .ticket-impressao {
+            display: block;
+            width: 100%;
+            padding-top: 0;
+            text-align: center;
+            font-family: Arial, sans-serif;
+            color: #000;
+        }
+        .ticket-impressao * { color: #000 !important; }
+        /* Logo em preto puro (logo_smedim_ticket.svg): a colorida sai
+           cinza pontilhado na térmica. */
+        .ticket-logo { height: 14mm; display: block; margin: 0 auto 8mm; }
+        .ticket-codigo { font-size: 48px; font-weight: 900; line-height: 1.1; }
+        .ticket-selo { font-size: 15px; font-weight: 700; border: 2px solid #000; padding: 1mm 3mm; display: inline-block; margin-top: 1.5mm; }
+        .ticket-especialidade { font-size: 15px; font-weight: 700; margin-top: 1mm; }
+        .ticket-data { font-size: 13px; font-weight: 700; margin-top: 1mm; }
+    }
+{% endblock %}
+
+{% block conteudo %}
+    <div class="confirmacao-senha no-imprimir">
+        <p class="totem-subtitulo" style="margin-bottom: 0;">Sua senha é</p>
+        <div class="numero-senha">{{ senha.codigo }}</div>
+        {% if senha.especialidade %}<p class="especialidade-senha">{{ senha.rotulo_atendimento }}</p>{% endif %}
+        {% if senha.tipo == "P" %}<div class="selo-prioridade">PRIORITÁRIO</div>{% elif senha.tipo == "E" %}<div class="selo-prioridade">EXAME COM PREPARO</div>{% endif %}
+        <p class="aviso-impressao">🖨️ Sua senha está sendo impressa...</p>
+        <p class="aviso-erro-impressora">Se o papel não sair, chame a recepção informando o número acima.</p>
+    </div>
+
+    <div class="ticket-impressao">
+        <img class="ticket-logo" src="{% static 'fila/img/logo_smedim_ticket.svg' %}" alt="Clínica SMEDIM">
+        <div class="ticket-codigo">{{ senha.codigo }}</div>
+        {% if senha.especialidade %}<div class="ticket-especialidade">{{ senha.rotulo_atendimento }}</div>{% endif %}
+        {% if senha.tipo == "P" %}<div class="ticket-selo">PRIORITÁRIO</div>{% elif senha.tipo == "E" %}<div class="ticket-selo">EXAME COM PREPARO</div>{% endif %}
+        <div class="ticket-data">{{ senha.criado_em|date:"d/m/Y H:i" }}</div>
+    </div>
+
+    <script>
+        // window.print() não avisa a página se a impressão realmente saiu
+        // (sem papel, impressora offline etc.) — o navegador não expõe esse
+        // retorno por segurança/privacidade, com ou sem --kiosk-printing.
+        // Por isso o aviso "chame a recepção" acima fica sempre visível, em
+        // vez de tentar detectar erro (não é possível fazer isso daqui).
+        window.addEventListener("load", function () {
+            window.print();
+            setTimeout(function () {
+                window.location.href = "{% url 'fila:totem_inicio' %}";
+            }, {{ segundos_redirecionar }} * 1000);
+        });
+    </script>
+{% endblock %}

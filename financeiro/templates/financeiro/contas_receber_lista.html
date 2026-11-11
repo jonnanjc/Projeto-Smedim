@@ -1,0 +1,108 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Contas a receber (convênio) — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <style>
+        .abas-visao a.ativa { background: var(--marca-escura); color: #fff; border-color: var(--marca-escura); }
+        .abas-visao a:not(.ativa):hover { border-color: var(--marca); }
+    </style>
+
+    <h2 style="margin:0;">Contas a receber (convênio)</h2>
+    <p style="font-size:13px;color:var(--texto-suave);">
+        Atendimentos por convênio já autorizados ou realizados. O valor é preenchido sozinho quando o convênio tem preço
+        configurado (Cadastros → Convênios → Tabela de preços); quando não, use "Lançar valor" pra preencher
+        na mão. Sem recorte por semana — convênio pode demorar meses a receber, diferente do repasse ao profissional.
+    </p>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 0;">
+        <form method="get" style="display:flex;gap:8px;align-items:center;">
+            {% if ver_recebidos %}<input type="hidden" name="ver" value="recebidos">{% endif %}
+            <label style="font-size:13px;">Convênio:</label>
+            <select name="convenio" class="campo" style="display:inline-block;width:auto;" onchange="this.form.submit()">
+                <option value="">Todos</option>
+                {% for convenio in convenios %}
+                    <option value="{{ convenio.pk }}" {% if convenio_selecionado == convenio.pk|stringformat:"s" %}selected{% endif %}>{{ convenio.nome }}</option>
+                {% endfor %}
+            </select>
+        </form>
+        <div class="abas-visao" style="margin:0;">
+            <a class="{% if not ver_recebidos %}ativa{% endif %}" style="padding:6px 14px;border-radius:8px;border:1px solid var(--borda);text-decoration:none;" href="?{% if convenio_selecionado %}convenio={{ convenio_selecionado }}{% endif %}">A receber</a>
+            <a class="{% if ver_recebidos %}ativa{% endif %}" style="padding:6px 14px;border-radius:8px;border:1px solid var(--borda);text-decoration:none;" href="?ver=recebidos{% if convenio_selecionado %}&convenio={{ convenio_selecionado }}{% endif %}">Já recebidos (histórico)</a>
+        </div>
+    </div>
+
+    {% for grupo in grupos %}
+        <h3 style="margin:20px 0 6px;">{{ grupo.convenio.nome }} — total: R$ {{ grupo.total }}{% if pagina.has_other_pages %} <span style="font-size:12px;font-weight:normal;color:var(--texto-suave);">(de todas as páginas)</span>{% endif %}</h3>
+        <table>
+            <tr>
+                <th>Data</th>
+                <th>Paciente</th>
+                <th>Profissional</th>
+                <th>Procedimento</th>
+                <th>Valor</th>
+                <th></th>
+            </tr>
+            {% for item in grupo.itens %}
+                <tr>
+                    <td>{{ item.data_hora_inicio|date:"d/m/Y" }}</td>
+                    <td>{{ item.paciente.nome_completo }}</td>
+                    <td>{{ item.profissional.nome }}</td>
+                    <td>
+                        {{ item.itens_resumo }}
+                        {% if item.guias_pendentes %}
+                            <div style="font-size:12px;color:#b9770e;margin-top:2px;">
+                                {{ item.guias_pendentes }} guia{{ item.guias_pendentes|pluralize }} de sessão pendente{{ item.guias_pendentes|pluralize }} —
+                                <a href="{% url 'agenda:guias_pendentes' %}?profissional={{ item.profissional_id }}">autorizar</a>
+                            </div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if item.valor_convenio %}
+                            R$ {{ item.valor_convenio }}
+                        {% else %}
+                            <span style="color:#c0392b;">sem valor lançado</span>
+                        {% endif %}
+                    </td>
+                    <td style="white-space:nowrap;">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            {% if perms.accounts.financeiro_lancar %}
+                                <a href="{% url 'financeiro:contas_receber_lancar' item.pk %}" class="botao-mini" style="text-decoration:none;">
+                                    {% if item.valor_convenio %}Corrigir valor{% else %}Lançar valor{% endif %}
+                                </a>
+                            {% endif %}
+                            {% if not ver_recebidos %}
+                                {% if item.trava_lote %}
+                                    <span style="font-size:12px;color:var(--texto-suave);">
+                                        Está no lote {{ item.trava_lote.identificacao }}, enviado em {{ item.trava_lote.data_envio|date:"d/m/Y" }}
+                                        {% if perms.accounts.faturamento_lote_visualizar %}
+                                            (<a href="{% url 'financeiro:lote_detalhe' item.trava_lote.pk %}">ver lote</a>)
+                                        {% endif %}
+                                    </span>
+                                {% elif perms.accounts.financeiro_conciliar and item.valor_convenio %}
+                                    <form method="post" action="{% url 'financeiro:contas_receber_marcar_recebido' item.pk %}">
+                                        {% csrf_token %}<button type="submit" class="botao-mini">Marcar como recebido</button>
+                                    </form>
+                                {% endif %}
+                            {% else %}
+                                <span style="font-size:12px;color:var(--texto-suave);">recebido em {{ item.convenio_recebido_em|date:"d/m/Y H:i" }}</span>
+                                {% if perms.accounts.financeiro_estornar %}
+                                    <form method="post" action="{% url 'financeiro:contas_receber_estornar' item.pk %}">
+                                        {% csrf_token %}<button type="submit" class="botao-mini">Estornar</button>
+                                    </form>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+        </table>
+    {% empty %}
+        <p><em>{% if ver_recebidos %}Nenhum recebimento de convênio no histórico.{% else %}Nenhuma conta a receber pendente.{% endif %}</em></p>
+    {% endfor %}
+
+    {% include 'accounts/_paginacao.html' %}
+
+    {% if grupos %}
+        <h3 style="margin-top:24px;">Total geral: R$ {{ total_geral }}</h3>
+    {% endif %}
+{% endblock %}

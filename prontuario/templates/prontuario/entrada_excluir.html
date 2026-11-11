@@ -1,0 +1,25 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Apagar registro do prontuário — Clínica SMEDIM{% endblock %}
+{% block conteudo %}
+    <h2>Apagar registro do prontuário</h2>
+    <div class="mensagem warning">
+        Este registro será apagado de vez e não poderá ser recuperado. Use só para um registro feito
+        errado (ex.: no paciente errado) — para corrigir o texto, prefira <a href="{% url 'prontuario:entrada_editar' entrada.pk %}">Editar</a>.
+    </div>
+    <p>
+        <strong>Paciente:</strong> {{ entrada.paciente.nome_completo }}<br>
+        <strong>Especialidade:</strong> {{ entrada.especialidade }}<br>
+        <strong>Data do atendimento:</strong> {{ entrada.data_exibicao|date:"d/m/Y" }}
+        <span style="font-size:12px;color:var(--texto-suave);">(digitado em {{ entrada.criado_em|date:"d/m/Y H:i" }})</span>
+    </p>
+    <div style="white-space:pre-wrap;border:1px solid var(--borda);border-radius:8px;padding:12px;margin-bottom:16px;">
+        {% for rotulo, valor in entrada.secoes_preenchidas %}<strong>{{ rotulo|capfirst }}:</strong> {{ valor }}{% if not forloop.last %}
+
+{% endif %}{% empty %}—{% endfor %}
+    </div>
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="botao" style="background:#c0392b;">Apagar registro</button>
+        <a href="{% url 'prontuario:prontuario_paciente' entrada.paciente_id %}" style="margin-left:12px;">Cancelar</a>
+    </form>
+{% endblock %}

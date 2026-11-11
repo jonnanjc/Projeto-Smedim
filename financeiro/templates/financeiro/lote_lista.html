@@ -1,0 +1,65 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Lotes de faturamento (convênio) — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+        <h2 style="margin:0;">Lotes de faturamento (convênio)</h2>
+        {% if perms.accounts.faturamento_lote_lancar %}
+            <a href="{% url 'financeiro:lote_novo' %}" class="botao" style="text-decoration:none;">+ Novo lote</a>
+        {% endif %}
+    </div>
+    <p style="font-size:13px;color:var(--texto-suave);">
+        Registro do que foi enviado ao convênio (lote/remessa), separado do que a clínica produziu
+        (<a href="{% url 'financeiro:producao_por_convenio' %}">Produção por convênio</a>) e do que voltou
+        pago/glosado. Ver também <a href="{% url 'financeiro:faturamento_comparativo' %}">Produção x envio x retorno</a>.
+    </p>
+
+    <form method="get" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:16px 0;">
+        <label style="font-size:13px;">Convênio:
+            <select name="convenio" class="campo" style="display:inline-block;width:auto;" onchange="this.form.submit()">
+                <option value="">Todos</option>
+                {% for convenio in convenios %}
+                    <option value="{{ convenio.pk }}" {% if convenio_selecionado == convenio.pk|stringformat:"s" %}selected{% endif %}>{{ convenio.nome }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label style="font-size:13px;">Situação:
+            <select name="status" class="campo" style="display:inline-block;width:auto;" onchange="this.form.submit()">
+                <option value="">Todas</option>
+                {% for codigo, rotulo in status_choices %}
+                    <option value="{{ codigo }}" {% if status_selecionado == codigo %}selected{% endif %}>{{ rotulo }}</option>
+                {% endfor %}
+            </select>
+        </label>
+    </form>
+
+    <table>
+        <tr>
+            <th>Convênio</th>
+            <th>Data de envio</th>
+            <th>Nº do lote</th>
+            <th>Enviado</th>
+            <th>Produzido (itens)</th>
+            <th>Pago</th>
+            <th>Glosado</th>
+            <th>Situação</th>
+            <th></th>
+        </tr>
+        {% for lote in pagina %}
+            <tr>
+                <td>{{ lote.convenio.nome }}</td>
+                <td>{{ lote.data_envio|date:"d/m/Y" }}</td>
+                <td>{{ lote.numero_lote|default:"—" }}</td>
+                <td>R$ {{ lote.valor_total_enviado }}</td>
+                <td>R$ {{ lote.valor_produzido }}</td>
+                <td>R$ {{ lote.valor_pago }}</td>
+                <td>R$ {{ lote.valor_glosado }}</td>
+                <td>{{ lote.get_status_display }}</td>
+                <td><a href="{% url 'financeiro:lote_detalhe' lote.pk %}">Ver</a></td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="9"><em>Nenhum lote lançado.</em></td></tr>
+        {% endfor %}
+    </table>
+{% include 'accounts/_paginacao.html' %}
+{% endblock %}

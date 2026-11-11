@@ -1,0 +1,20 @@
+{% comment %}
+    Dados do paciente no topo do prontuário (pedido da clínica, 23/10/2026): idade pelo
+    cadastro, plano do cadastro e plano com que o atendimento foi autorizado — os dois podem
+    ser diferentes (paciente com convênio atendido particular, ou vice-versa).
+    Espera `paciente` e, opcional, `atendimento` (Agendamento).
+{% endcomment %}
+<p style="margin:8px 0 12px;">
+    <strong>Idade:</strong>
+    {% if paciente.idade is None %}<span style="color:#b00020;">{{ paciente.idade_exibicao }}</span>{% else %}{{ paciente.idade_exibicao }}{% endif %}
+    &nbsp;·&nbsp;
+    <strong>Plano no cadastro:</strong> {{ paciente.plano_cadastro_exibicao }}
+    &nbsp;·&nbsp;
+    <strong>Plano autorizado no atendimento:</strong>
+    {% if atendimento %}
+        {{ atendimento.plano_exibicao }}
+        <span style="font-size:12px;color:var(--texto-suave);">({{ atendimento.data_hora_inicio|date:"d/m/Y H:i" }})</span>
+    {% else %}
+        <span style="color:var(--texto-suave);">nenhum atendimento autorizado</span>
+    {% endif %}
+</p>

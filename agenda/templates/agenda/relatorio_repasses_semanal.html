@@ -1,0 +1,92 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Repasses semanais (particular) — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Repasses semanais de particular</h2>
+        <a href="?data={{ data_referencia|date:'Y-m-d' }}{% if ver_pagos %}&ver=pagos{% endif %}&exportar=1" class="botao" style="text-decoration:none;">⬇ Exportar para planilha</a>
+    </div>
+    <p style="font-size:13px;color:var(--texto-suave);">
+        Atendimento particular pago em <strong>dinheiro</strong> é repassado ao profissional no mesmo dia e
+        não aparece aqui. As demais formas de pagamento (cartão débito/crédito, Pix) ficam pendentes de
+        repasse — esta tela lista o que falta pagar (ou o histórico já pago).
+    </p>
+    <p style="font-size:13px;color:var(--texto-suave);">
+        <strong>Pagamento parcial:</strong> se o caixa não tiver dinheiro para repassar tudo (ou o profissional
+        quiser levar só uma parte), use <strong>Registrar pagamento</strong> e informe quanto foi pago. O valor é
+        abatido dos atendimentos mais antigos primeiro, e o restante continua pendente até ser pago (por exemplo,
+        por Pix do proprietário). Pagamento em dinheiro do caixa já lança a saída de caixa automaticamente.
+    </p>
+    <p style="font-size:12.5px;color:var(--texto-suave);">
+        <strong>Valor líquido</strong> já desconta o percentual de retenção do profissional (cadastro do
+        profissional) — ou, para quem cobra valor fixo no particular, é o valor fixo de repasse
+        do procedimento — é esse o valor a entregar no repasse. <strong>Valor bruto</strong> é o valor cheio
+        pago pelo paciente, mantido aqui só para conferência. Para o consolidado do mês, veja
+        <a href="{% url 'financeiro:fechamento_mensal' %}">Fechamento mensal</a>.
+    </p>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 0;">
+        <div style="display:flex;gap:6px;align-items:center;">
+            <a class="cal-nav-botao" style="border:1px solid var(--borda);border-radius:6px;padding:4px 10px;text-decoration:none;" href="?data={{ semana_anterior|date:'Y-m-d' }}{% if ver_pagos %}&ver=pagos{% endif %}">‹ Semana anterior</a>
+            <strong>{{ intervalo_inicio|date:"d/m" }} a {{ intervalo_fim|date:"d/m/Y" }}</strong>
+            <a class="cal-nav-botao" style="border:1px solid var(--borda);border-radius:6px;padding:4px 10px;text-decoration:none;" href="?data={{ semana_seguinte|date:'Y-m-d' }}{% if ver_pagos %}&ver=pagos{% endif %}">Semana seguinte ›</a>
+        </div>
+        <div class="abas-visao" style="margin:0;">
+            <a class="{% if not ver_pagos %}ativa{% endif %}" style="padding:6px 14px;border-radius:8px;border:1px solid var(--borda);text-decoration:none;" href="?data={{ data_referencia|date:'Y-m-d' }}">A pagar</a>
+            <a class="{% if ver_pagos %}ativa{% endif %}" style="padding:6px 14px;border-radius:8px;border:1px solid var(--borda);text-decoration:none;" href="?data={{ data_referencia|date:'Y-m-d' }}&ver=pagos">Já pagos (histórico)</a>
+        </div>
+    </div>
+
+    {% for grupo in grupos %}
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:20px 0 6px;">
+            <h3 style="margin:0;">
+                {{ grupo.profissional.nome }} — {% if ver_pagos %}total repassado{% else %}a repassar nesta semana{% endif %}: R$ {{ grupo.total }}
+                <span style="font-size:12px;font-weight:400;color:var(--texto-suave);">(bruto: R$ {{ grupo.total_bruto }})</span>
+            </h3>
+            {% if not ver_pagos %}
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                    {% if grupo.saldo_todas_semanas != grupo.total %}
+                        <span style="font-size:12.5px;color:var(--texto-suave);">saldo total (todas as semanas): <strong>R$ {{ grupo.saldo_todas_semanas }}</strong></span>
+                    {% endif %}
+                    {% if perms.accounts.financeiro_conciliar %}
+                        <a href="{% url 'financeiro:repasse_pagamento_novo' grupo.profissional.pk %}" class="botao-mini" style="text-decoration:none;">Registrar pagamento</a>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+        <table>
+            <tr>
+                <th>Data</th>
+                <th>Paciente</th>
+                <th>Forma de pagamento</th>
+                <th>Valor bruto</th>
+                <th>Valor líquido</th>
+                {% if ver_pagos %}<th></th>{% else %}<th>Já pago</th><th>Saldo a pagar</th>{% endif %}
+            </tr>
+            {% for item in grupo.itens %}
+                <tr>
+                    <td>{{ item.agendamento.data_hora_inicio|date:"d/m/Y" }}</td>
+                    <td>{{ item.agendamento.paciente.nome_completo }}</td>
+                    <td>{{ item.get_forma_pagamento_display }}</td>
+                    <td>R$ {{ item.valor }}</td>
+                    <td>R$ {{ item.valor_liquido }}</td>
+                    {% if ver_pagos %}
+                        <td><span style="font-size:12px;color:var(--texto-suave);">pago em {{ item.repasse_pago_em|date:"d/m/Y H:i" }}</span></td>
+                    {% else %}
+                        <td>{% if item.repasse_valor_pago %}R$ {{ item.repasse_valor_pago }} <span style="font-size:11px;color:var(--texto-suave);">(parcial)</span>{% else %}—{% endif %}</td>
+                        <td><strong>R$ {{ item.saldo }}</strong></td>
+                    {% endif %}
+                </tr>
+            {% endfor %}
+        </table>
+    {% empty %}
+        <p><em>{% if ver_pagos %}Nenhum repasse pago nesta semana.{% else %}Nenhum repasse pendente nesta semana.{% endif %}</em></p>
+    {% endfor %}
+
+    {% if grupos %}
+        <h3 style="margin-top:24px;">
+            Total geral {% if ver_pagos %}repassado{% else %}a repassar nesta semana{% endif %}: R$ {{ total_geral }}
+            <span style="font-size:12px;font-weight:400;color:var(--texto-suave);">(bruto: R$ {{ total_geral_bruto }})</span>
+        </h3>
+    {% endif %}
+{% endblock %}

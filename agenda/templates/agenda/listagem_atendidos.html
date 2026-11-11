@@ -1,0 +1,86 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Listagem de atendidos — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <style>
+        tr.linha-atendida td { background: rgba(46, 160, 67, 0.12); }
+        .atalhos-periodo a { margin-right: 12px; font-size: 13px; }
+    </style>
+    <h2 style="margin:0;">Listagem de atendidos</h2>
+    {% if profissional %}
+        <p style="font-size:13px;color:var(--texto-suave);">
+            Seus atendimentos já autorizados no período ({{ profissional.nome }}). As linhas em
+            <strong style="color:#2ea043;">verde</strong> são as que você marcou como atendidas; as demais foram
+            autorizadas, mas ainda não marcadas.
+        </p>
+
+        <form method="get" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin:12px 0 6px;">
+            <div>
+                <label>Data:</label>
+                <input type="date" name="de" value="{{ de|date:'Y-m-d' }}" class="campo">
+            </div>
+            <div>
+                <label>até:</label>
+                <input type="date" name="ate" value="{{ ate|date:'Y-m-d' }}" class="campo">
+            </div>
+            <div>
+                <label>Paciente:</label>
+                <input type="text" name="paciente" value="{{ paciente_nome }}" class="campo" placeholder="parte do nome">
+            </div>
+            <div>
+                <label>Situação:</label>
+                <select name="situacao" class="campo">
+                    <option value="">Todos</option>
+                    <option value="atendido" {% if situacao == "atendido" %}selected{% endif %}>Marcados como atendido</option>
+                    <option value="nao_marcado" {% if situacao == "nao_marcado" %}selected{% endif %}>Autorizados, ainda não marcados</option>
+                </select>
+            </div>
+            <button type="submit" class="botao">Procurar</button>
+        </form>
+        <div class="atalhos-periodo">
+            <a href="?de={{ hoje|date:'Y-m-d' }}">Hoje</a>
+            <a href="?de={{ ontem|date:'Y-m-d' }}">Ontem</a>
+            <a href="?de={{ inicio_mes|date:'Y-m-d' }}&ate={{ hoje|date:'Y-m-d' }}">Este mês</a>
+        </div>
+
+        <p style="margin:12px 0 6px;font-weight:600;">
+            {{ pagina.paginator.count }} atendimento(s){% if linhas %} · {{ total_atendidos }} marcado(s) como atendido{% endif %}
+        </p>
+        <div style="overflow-x:auto;">
+        <table>
+            <tr>
+                <th>Data</th>
+                <th>Paciente</th>
+                <th>Procedimento</th>
+                <th>Plano</th>
+                <th>Situação</th>
+                <th class="no-imprimir"></th>
+            </tr>
+            {% for ag in linhas %}
+                <tr {% if ag.status == "REALIZADO" %}class="linha-atendida"{% endif %}>
+                    <td style="white-space:nowrap;">{{ ag.data_hora_inicio|date:"d/m/Y" }}<div style="font-size:12px;color:var(--texto-suave);">{{ ag.horario_exibicao }}</div></td>
+                    <td>{{ ag.paciente.nome_completo }}</td>
+                    <td>
+                        {% for item in ag.itens.all %}
+                            <div>{{ item }}{% if item.eh_retorno %} <span style="font-size:12px;color:var(--texto-suave);">(retorno)</span>{% endif %}</div>
+                        {% endfor %}
+                    </td>
+                    <td>{{ ag.plano_exibicao }}</td>
+                    <td>{% if ag.status == "REALIZADO" %}Atendido{% else %}Autorizado <span style="font-size:12px;color:var(--texto-suave);">(não marcado)</span>{% endif %}</td>
+                    <td class="no-imprimir" style="white-space:nowrap;">
+                        {% if ag.paciente.ativo %}
+                            <a href="{% url 'prontuario:prontuario_paciente' ag.paciente_id %}">Prontuário</a>
+                            {% if ag.status == "REALIZADO" %}
+                                · <a href="{% url 'prontuario:entrada_nova' ag.pk %}">+ Registro</a>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="6" style="color:var(--texto-suave);">Nenhum atendimento seu no período.</td></tr>
+            {% endfor %}
+        </table>
+        </div>
+        <div class="no-imprimir">{% include 'accounts/_paginacao.html' %}</div>
+    {% endif %}
+{% endblock %}

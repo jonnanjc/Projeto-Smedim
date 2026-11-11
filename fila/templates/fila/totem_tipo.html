@@ -1,0 +1,38 @@
+{% extends "fila/base_totem.html" %}
+
+{% block conteudo %}
+    <h1 class="totem-titulo">Qual o tipo da sua senha?</h1>
+    <p class="totem-subtitulo">Toque em uma opção abaixo.</p>
+
+    <form method="post" action="{% url 'fila:totem_emitir' %}" style="width: 100%;">
+        {% csrf_token %}
+        <input type="hidden" name="tipo" value="{{ tipo_normal }}">
+        <input type="hidden" name="especialidade" value="{{ especialidade }}">
+        <input type="hidden" name="procedimento" value="{{ procedimento }}">
+        <input type="hidden" name="profissional" value="{{ profissional }}">
+        <button type="submit" class="botao-totem">
+            <span class="icone">🎫</span>
+            SENHA NORMAL
+        </button>
+    </form>
+
+    {% if oferece_exame_preparo %}
+    <form method="post" action="{% url 'fila:totem_emitir' %}" style="width: 100%;">
+        {% csrf_token %}
+        <input type="hidden" name="tipo" value="{{ tipo_exame_preparo }}">
+        <input type="hidden" name="especialidade" value="{{ especialidade }}">
+        <input type="hidden" name="profissional" value="{{ profissional }}">
+        <button type="submit" class="botao-totem preparo">
+            <span class="icone">🧪</span>
+            EXAME COM PREPARO
+        </button>
+    </form>
+    {% endif %}
+
+    <a href="{% url 'fila:totem_prioridade' %}?especialidade={{ especialidade|urlencode }}&procedimento={{ procedimento|urlencode }}&profissional={{ profissional|urlencode }}" class="botao-totem secundario">
+        <span class="icone">⭐</span>
+        ATENDIMENTO PRIORITÁRIO
+    </a>
+
+    <a href="{% url 'fila:totem_inicio' %}" class="link-voltar">‹ Voltar</a>
+{% endblock %}

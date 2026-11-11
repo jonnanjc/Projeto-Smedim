@@ -1,0 +1,73 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Corrigir pagamento — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <h2 style="margin:0;">Corrigir pagamento</h2>
+    <p style="font-size:13px;color:var(--texto-suave);">
+        Pagamentos registrados no período escolhido (buscando pelo paciente, procura em qualquer data). Dá para corrigir a forma de pagamento, dividir entre
+        duas formas, o valor recebido do cartão, as parcelas e o valor total (com motivo). Toda correção fica no
+        log de auditoria.
+    </p>
+
+    <form method="get" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin:12px 0;">
+        <div>
+            <label>Registrado de:</label>
+            <input type="date" name="de" value="{{ de|date:'Y-m-d' }}" class="campo">
+        </div>
+        <div>
+            <label>até:</label>
+            <input type="date" name="ate" value="{{ ate|date:'Y-m-d' }}" class="campo">
+        </div>
+        <div>
+            <label>Paciente:</label>
+            <input type="text" name="q" value="{{ termo }}" class="campo" placeholder="parte do nome">
+        </div>
+        <button type="submit" class="botao">Procurar</button>
+    </form>
+    <div style="font-size:13px;margin:-4px 0 10px;">
+        <a href="?de={{ hoje|date:'Y-m-d' }}" style="margin-right:12px;">Hoje</a>
+        <a href="?de={{ ontem|date:'Y-m-d' }}&ate={{ ontem|date:'Y-m-d' }}" style="margin-right:12px;">Ontem</a>
+        <a href="?de={{ sete_dias|date:'Y-m-d' }}" style="margin-right:12px;">Últimos 7 dias</a>
+        <a href="?de={{ inicio_mes|date:'Y-m-d' }}">Este mês</a>
+    </div>
+
+    <div style="overflow-x:auto;">
+    <table>
+        <tr>
+            <th>Registrado em</th>
+            <th>Paciente</th>
+            <th>Profissional</th>
+            <th>Plano</th>
+            <th>Pagamento</th>
+            <th>Total</th>
+            <th class="no-imprimir"></th>
+        </tr>
+        {% for linha in linhas %}
+            <tr>
+                <td style="white-space:nowrap;">{{ linha.registrado_em|date:"d/m H:i" }}
+                    <div style="font-size:12px;color:var(--texto-suave);">atend. {{ linha.agendamento.data_hora_inicio|date:"d/m/Y" }}</div>
+                </td>
+                <td>{{ linha.agendamento.paciente.nome_completo }}</td>
+                <td>{{ linha.agendamento.profissional.nome }}</td>
+                <td>{{ linha.agendamento.plano_exibicao }}</td>
+                <td style="font-size:13px;">
+                    {% for p in linha.pagamentos %}
+                        <div>{{ p.get_forma_pagamento_display }} R$ {{ p.valor }}{% if p.valor_recebido is not None %} <span style="color:var(--texto-suave);">(recebido R$ {{ p.valor_recebido }})</span>{% endif %}{% if p.parcelas %} {{ p.parcelas }}x{% endif %}{% if p.estornado %} <span style="color:#c0392b;">estornado</span>{% endif %}</div>
+                    {% endfor %}
+                </td>
+                <td class="fonte-num" style="white-space:nowrap;">R$ {{ linha.total }}</td>
+                <td class="no-imprimir">
+                    {% if linha.bloqueio %}
+                        <span style="font-size:12px;color:var(--texto-suave);" title="{{ linha.bloqueio }}">não editável</span>
+                    {% else %}
+                        <a href="{% url 'financeiro:pagamento_corrigir' linha.agendamento.pk %}">Corrigir</a>
+                    {% endif %}
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="7" style="color:var(--texto-suave);">Nenhum pagamento registrado {% if termo %}para esse paciente{% else %}no período{% endif %}.</td></tr>
+        {% endfor %}
+    </table>
+    </div>
+    {% include 'accounts/_paginacao.html' %}
+{% endblock %}

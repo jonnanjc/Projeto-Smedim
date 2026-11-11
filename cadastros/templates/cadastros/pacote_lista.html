@@ -1,0 +1,44 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Pacotes / combos — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Pacotes / combos (particular)</h2>
+        <a href="{% url 'cadastros:pacote_novo' %}" class="botao" style="text-decoration:none;">+ Novo pacote</a>
+    </div>
+    <p style="font-size:13px;color:var(--texto-suave);">
+        Preço fechado pago de uma vez pelo paciente (ex.: "Consulta + Eletrocardiograma", "10 sessões").
+        A venda é feita na tela de <strong>registrar pagamento</strong> de um atendimento particular: o
+        profissional recebe o repasse do pacote inteiro nesse pagamento. Depois, os atendimentos do mesmo
+        paciente com o mesmo profissional usam o saldo sozinhos e não passam mais pelo financeiro. Falta não
+        consome sessão (o paciente remarca); o pacote não tem validade nem devolução.
+    </p>
+
+    <table>
+        <tr>
+            <th>Nome</th>
+            <th>Itens</th>
+            <th>Profissional</th>
+            <th>Valor</th>
+            <th>Repasse fixo</th>
+            <th>Situação</th>
+            <th></th>
+        </tr>
+        {% for pacote in pacotes %}
+            <tr>
+                <td>{{ pacote.nome }}</td>
+                <td>{{ pacote.itens_resumo }}</td>
+                <td>{{ pacote.profissional.nome|default:"Qualquer profissional" }}</td>
+                <td>R$ {{ pacote.valor }}</td>
+                <td>{% if pacote.valor_repasse is not None %}R$ {{ pacote.valor_repasse }}{% else %}% do profissional{% endif %}</td>
+                <td>{% if pacote.ativo %}Ativo{% else %}Inativo{% endif %}</td>
+                <td>
+                    <a href="{% url 'cadastros:pacote_editar' pacote.pk %}">Editar</a>
+                    · <a href="{% url 'cadastros:pacote_excluir' pacote.pk %}">Excluir</a>
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="7"><em>Nenhum pacote cadastrado.</em></td></tr>
+        {% endfor %}
+    </table>
+{% endblock %}

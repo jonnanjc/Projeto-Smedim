@@ -1,0 +1,7 @@
+{# Prioridade do atendimento (Agendamento.motivo_prioridade) — usada nos botões da recepção na Agenda do dia. #}
+<select name="motivo_prioridade" class="botao-mini" title="Paciente com senha P no totem: escolha o motivo" style="max-width:170px;">
+    <option value="">Normal</option>
+    {% for valor, rotulo in motivos_prioridade %}
+        <option value="{{ valor }}"{% if valor == agendamento.motivo_prioridade %} selected{% endif %}>P · {{ rotulo }}</option>
+    {% endfor %}
+</select>

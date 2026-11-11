@@ -1,0 +1,83 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Saldos e pagamentos de repasse — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <h2 style="margin:0;">Saldos e pagamentos de repasse (particular)</h2>
+    <p style="font-size:13px;color:var(--texto-suave);">
+        Repasse de particular pago em cartão/Pix que ainda falta entregar a cada profissional, somando
+        <strong>todas as semanas</strong>, já com o desconto da clínica. Quando o caixa não cobre tudo, registre
+        só o que foi pago: o saldo fica aqui até ser quitado (por exemplo, por Pix do proprietário). O
+        proprietário não aparece aqui — não há repasse a pagar a ele. Detalhe
+        por atendimento em <a href="{% url 'agenda:relatorio_repasses_semanal' %}">Repasses semanais</a>.
+    </p>
+
+    <h3 style="margin-top:20px;">Saldo pendente por profissional</h3>
+    <table>
+        <tr>
+            <th>Profissional</th>
+            <th>Atendimentos em aberto</th>
+            <th>Mais antigo</th>
+            <th>Saldo a repassar</th>
+            <th></th>
+        </tr>
+        {% for item in saldos %}
+            <tr>
+                <td>{{ item.profissional.nome }}</td>
+                <td>{{ item.qtd }}</td>
+                <td>{{ item.mais_antigo|date:"d/m/Y" }}</td>
+                <td><strong>R$ {{ item.saldo }}</strong></td>
+                <td>
+                    {% if pode_registrar %}
+                        <a href="{% url 'financeiro:repasse_pagamento_novo' item.profissional.pk %}" class="botao-mini" style="text-decoration:none;">Registrar pagamento</a>
+                    {% endif %}
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="5"><em>Nenhum repasse particular pendente.</em></td></tr>
+        {% endfor %}
+        {% if saldos %}
+            <tr><td colspan="3"><strong>Total</strong></td><td><strong>R$ {{ saldo_total }}</strong></td><td></td></tr>
+        {% endif %}
+    </table>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:28px 0 8px;">
+        <h3 style="margin:0;">Pagamentos registrados</h3>
+        <form method="get" style="display:flex;gap:8px;align-items:center;">
+            <select name="profissional" class="campo" onchange="this.form.submit()">
+                <option value="">Todos os profissionais</option>
+                {% for p in profissionais %}
+                    <option value="{{ p.pk }}" {% if profissional_selecionado == p.pk|stringformat:"d" %}selected{% endif %}>{{ p.nome }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+    <table>
+        <tr>
+            <th>Data</th>
+            <th>Profissional</th>
+            <th>Valor</th>
+            <th>Pago como</th>
+            <th>Observação</th>
+            <th>Lançado por</th>
+            <th></th>
+        </tr>
+        {% for item in pagina %}
+            <tr>
+                <td>{{ item.data|date:"d/m/Y" }}</td>
+                <td>{{ item.profissional.nome }}</td>
+                <td>R$ {{ item.valor }}</td>
+                <td>{{ item.get_forma_display }}</td>
+                <td>{{ item.observacao|default:"—" }}</td>
+                <td>{% if item.criado_por %}{{ item.criado_por.get_full_name|default:item.criado_por.username }}{% else %}—{% endif %}</td>
+                <td>
+                    {% if pode_registrar %}
+                        <a href="{% url 'financeiro:repasse_pagamento_excluir' item.pk %}" class="botao-mini" style="text-decoration:none;">Excluir</a>
+                    {% endif %}
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="7"><em>Nenhum pagamento de repasse registrado.</em></td></tr>
+        {% endfor %}
+    </table>
+{% include 'accounts/_paginacao.html' %}
+{% endblock %}

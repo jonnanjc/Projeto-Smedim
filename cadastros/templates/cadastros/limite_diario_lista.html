@@ -1,0 +1,38 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Limites diários de atendimento — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Limites diários de atendimento por profissional</h2>
+        <a href="{% url 'cadastros:limite_diario_novo' %}" class="botao" style="text-decoration:none;">+ Novo limite</a>
+    </div>
+    <p style="font-size:13px;color:var(--texto-suave);">
+        Quando configurado, a Central de Atendimento mostra um aviso (não bloqueia) ao agendar um atendimento
+        para um profissional que já atingiu o limite diário configurado aqui, para aquela data. Dá para limitar
+        por procedimento, por convênio (útil para planos que pagam pouco), ou pelos dois combinados.
+    </p>
+
+    <table>
+        <tr>
+            <th>Profissional</th>
+            <th>Procedimento</th>
+            <th>Convênio</th>
+            <th>Limite diário</th>
+            <th></th>
+        </tr>
+        {% for limite in limites %}
+            <tr>
+                <td>{{ limite.profissional.nome }}</td>
+                <td>{{ limite.alvo_exibicao|capfirst }}</td>
+                <td>{{ limite.convenio.nome|default:"Qualquer convênio / particular" }}</td>
+                <td>{{ limite.limite_diario }}</td>
+                <td>
+                    <a href="{% url 'cadastros:limite_diario_editar' limite.pk %}">Editar</a>
+                    · <a href="{% url 'cadastros:limite_diario_excluir' limite.pk %}">Excluir</a>
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="5"><em>Nenhum limite diário cadastrado.</em></td></tr>
+        {% endfor %}
+    </table>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}{{ titulo }} — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <p><a href="{% url 'perfil_lista' %}">← Voltar para perfis</a></p>
+    <h2>{{ titulo }}</h2>
+    <form method="post">
+        {% csrf_token %}
+        <div class="campo-bloco">
+            {{ form.nome.label_tag }}
+            {{ form.nome }}
+            {% for erro in form.nome.errors %}
+                <div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>
+            {% endfor %}
+        </div>
+
+        <h3>Permissões por departamento</h3>
+        <p style="font-size:13px;color:var(--texto-suave);">Marque o que qualquer usuário com este perfil poderá fazer no sistema.</p>
+        {% include "accounts/_permissoes_por_departamento.html" with departamentos=departamentos permissoes_selecionadas=permissoes_selecionadas nome_campo="permissoes" %}
+
+        <button type="submit" class="botao">Salvar</button>
+        <a href="{% url 'perfil_lista' %}" style="margin-left:12px;">Cancelar</a>
+    </form>
+{% endblock %}

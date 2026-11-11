@@ -1,0 +1,114 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Dar baixa no lote {{ lote.identificacao }} — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <style>
+        .tabela-baixa-lote td { vertical-align: top; }
+        .tabela-baixa-lote input.campo { width: 90px; }
+        .tabela-baixa-lote input[type="date"].campo { width: 130px; }
+        .tabela-baixa-lote textarea.campo { width: 160px; min-height: 34px; height: 34px; resize: vertical; }
+        .tabela-baixa-lote tr.linha-diferenca td { background: #fdf3e0; }
+        html[data-tema="escuro"] .tabela-baixa-lote tr.linha-diferenca td { background: #362a12; }
+        .aviso-diferenca { display: none; font-size: 11px; color: #8a5a00; }
+        html[data-tema="escuro"] .aviso-diferenca { color: #f0cd8a; }
+    </style>
+
+    <h2 style="margin:0;">Dar baixa no lote {{ lote.identificacao }} — {{ lote.convenio.nome }}</h2>
+    <p style="font-size:13px;color:var(--texto-suave);">
+        Enviado em {{ lote.data_envio|date:"d/m/Y" }}. Preencha pago/glosado de cada atendimento e
+        salve tudo de uma vez — uma linha deixada em 0,00/0,00 não lança retorno pra ela, o
+        atendimento continua "Aguardando retorno" pra lançar depois.
+        — <a href="{% url 'financeiro:lote_detalhe' lote.pk %}">voltar para o lote</a>
+    </p>
+
+    <form method="post">
+        {% csrf_token %}
+        <table class="tabela-baixa-lote">
+            <tr>
+                <th>Paciente</th>
+                <th>Profissional</th>
+                <th>Procedimento</th>
+                <th>Produzido</th>
+                <th>Pago</th>
+                <th>Glosado</th>
+                <th>Motivo da glosa</th>
+                <th>Data do retorno</th>
+            </tr>
+            {% for linha in linhas %}
+                <tr class="linha-retorno" data-produzido="{{ linha.produzido_num }}">
+                    <td>{{ linha.agendamento.paciente.nome_completo }}</td>
+                    <td>{{ linha.agendamento.profissional.nome }}</td>
+                    <td>{{ linha.agendamento.itens_resumo }}</td>
+                    <td>
+                        R$ {{ linha.agendamento.valor_convenio|default:"0,00" }}
+                        <br><span class="aviso-diferenca"></span>
+                    </td>
+                    <td>{{ linha.form.valor_pago }}</td>
+                    <td>{{ linha.form.valor_glosado }}</td>
+                    <td>{{ linha.form.motivo_glosa }}</td>
+                    <td>{{ linha.form.data_retorno }}</td>
+                </tr>
+                {% if linha.form.errors %}
+                    <tr>
+                        <td colspan="8">
+                            {% for campo in linha.form %}
+                                {% for erro in campo.errors %}
+                                    <div class="mensagem error" style="margin-top:6px;">
+                                        {{ linha.agendamento.paciente.nome_completo }} — {{ campo.label }}: {{ erro }}
+                                    </div>
+                                {% endfor %}
+                            {% endfor %}
+                        </td>
+                    </tr>
+                {% endif %}
+            {% empty %}
+                <tr><td colspan="8"><em>Nenhum atendimento incluído neste lote.</em></td></tr>
+            {% endfor %}
+        </table>
+        <div style="margin-top:16px;">
+            <button type="submit" class="botao">Salvar tudo</button>
+            <a href="{% url 'financeiro:lote_detalhe' lote.pk %}" style="margin-left:12px;">Cancelar</a>
+        </div>
+    </form>
+
+    <script>
+        // Avisa quando Pago + Glosado não bate com o Produzido do item — o sistema não trava
+        // nem corrige isso sozinho (o valor digitado é o que vale), isto é só um alerta visual
+        // pra não repetir o caso de 2026-07-27: baixa com "Pago" menor que o produzido e nada
+        // lançado em "Glosado", sem nenhum aviso de que a diferença ficou sem explicação.
+        (function () {
+            function atualizarLinha(tr) {
+                var produzido = parseFloat(tr.dataset.produzido) || 0;
+                var campoPago = tr.querySelector('input[name$="-valor_pago"]');
+                var campoGlosado = tr.querySelector('input[name$="-valor_glosado"]');
+                var aviso = tr.querySelector('.aviso-diferenca');
+                if (!campoPago || !campoGlosado || !aviso) return;
+
+                var pago = window.Moeda.ler(campoPago.value) || 0;  // aceita 150.000,00
+                var glosado = window.Moeda.ler(campoGlosado.value) || 0;
+                var tocada = pago !== 0 || glosado !== 0;
+                var diferenca = Math.round((pago + glosado - produzido) * 100) / 100;
+
+                if (tocada && diferenca !== 0) {
+                    var texto = diferenca > 0
+                        ? window.Moeda.emReais(diferenca) + " a mais do que o produzido"
+                        : "faltam " + window.Moeda.emReais(Math.abs(diferenca)) + " sem explicar (nem pago, nem glosado)";
+                    aviso.textContent = "⚠ " + texto;
+                    aviso.style.display = "inline";
+                    tr.classList.add("linha-diferenca");
+                } else {
+                    aviso.textContent = "";
+                    aviso.style.display = "none";
+                    tr.classList.remove("linha-diferenca");
+                }
+            }
+
+            document.querySelectorAll(".linha-retorno").forEach(function (tr) {
+                tr.querySelectorAll('input[name$="-valor_pago"], input[name$="-valor_glosado"]').forEach(function (campo) {
+                    campo.addEventListener("input", function () { atualizarLinha(tr); });
+                });
+                atualizarLinha(tr); // já marca de cara linhas reabertas com retorno pré-preenchido
+            });
+        })();
+    </script>
+{% endblock %}

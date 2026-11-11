@@ -1,0 +1,44 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Log de auditoria — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Log de auditoria</h2>
+    </div>
+
+    <form method="get" style="margin:12px 0;display:flex;gap:8px;">
+        <input type="text" name="busca" value="{{ busca }}" placeholder="Buscar por ação ou usuário...">
+        <button type="submit" class="botao">Buscar</button>
+    </form>
+
+    <table>
+        <tr>
+            <th>Data/hora</th>
+            <th>Usuário</th>
+            <th>Ação</th>
+            <th>IP</th>
+        </tr>
+        {% for log in pagina %}
+            <tr>
+                <td>{{ log.data_hora|date:"d/m/Y H:i" }}</td>
+                <td>{{ log.usuario.username|default:"(usuário removido)" }}</td>
+                <td>{{ log.acao }}</td>
+                <td>{{ log.ip|default:"—" }}</td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="4"><em>Nenhum registro encontrado.</em></td></tr>
+        {% endfor %}
+    </table>
+
+    {% if pagina.has_other_pages %}
+        <div style="margin-top:12px;display:flex;gap:12px;align-items:center;">
+            {% if pagina.has_previous %}
+                <a href="?pagina={{ pagina.previous_page_number }}{% if busca %}&busca={{ busca }}{% endif %}">« Anterior</a>
+            {% endif %}
+            <span>Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}</span>
+            {% if pagina.has_next %}
+                <a href="?pagina={{ pagina.next_page_number }}{% if busca %}&busca={{ busca }}{% endif %}">Próxima »</a>
+            {% endif %}
+        </div>
+    {% endif %}
+{% endblock %}

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="utf-8">
+    <title>Paciente cadastrado</title>
+    <style>
+        body { font-family: sans-serif; padding: 32px; color: #333; }
+    </style>
+</head>
+<body>
+    <p>Paciente cadastrado com sucesso. Esta janela pode ser fechada.</p>
+    <script>
+        if (window.opener) {
+            window.opener.postMessage(
+                {
+                    tipo: "paciente_criado",
+                    id: {{ paciente.pk }},
+                    nome: "{{ paciente.nome_completo|escapejs }}"
+                },
+                "*"
+            );
+        }
+        window.close();
+    </script>
+</body>
+</html>

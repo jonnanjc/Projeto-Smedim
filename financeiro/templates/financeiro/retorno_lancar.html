@@ -1,0 +1,65 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Lançar retorno — Clínica SMEDIM{% endblock %}
+{% block conteudo %}
+    <h2>Lançar retorno do convênio</h2>
+    <p style="color:var(--texto-suave);">
+        {{ agendamento.paciente.nome_completo }} — {{ agendamento.profissional.nome }} —
+        {{ agendamento.data_hora_inicio|date:"d/m/Y" }} — lote {{ lote.identificacao }} ({{ lote.convenio.nome }}).
+        Produzido: R$ {{ agendamento.valor_convenio|default:"0,00" }}.
+    </p>
+    <form method="post" id="form-retorno" data-produzido="{{ produzido_num }}">
+        {% csrf_token %}
+        {% for campo in form %}
+            <div class="campo-bloco">
+                {{ campo.label_tag }}
+                {{ campo }}
+                {% if campo.help_text %}<div style="font-size:12px;color:var(--texto-suave);margin-top:4px;">{{ campo.help_text }}</div>{% endif %}
+                {% for erro in campo.errors %}
+                    <div class="mensagem error" style="margin-top:6px;">{{ erro }}</div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+        {% if form.non_field_errors %}
+            {% for erro in form.non_field_errors %}
+                <div class="mensagem error">{{ erro }}</div>
+            {% endfor %}
+        {% endif %}
+        <div id="aviso-diferenca-retorno" class="mensagem warning" style="display:none;"></div>
+        <button type="submit" class="botao">Salvar</button>
+        <a href="{% url 'financeiro:lote_detalhe' lote.pk %}" style="margin-left:12px;">Cancelar</a>
+    </form>
+
+    <script>
+        // Mesmo aviso de lote_dar_baixa.html: Pago + Glosado que não bate com o Produzido não é
+        // travado, só destacado — ver financeiro/models.py RetornoLoteItem.diferenca_produzido.
+        (function () {
+            var form = document.getElementById("form-retorno");
+            var aviso = document.getElementById("aviso-diferenca-retorno");
+            var campoPago = form.querySelector('input[name="valor_pago"]');
+            var campoGlosado = form.querySelector('input[name="valor_glosado"]');
+            if (!campoPago || !campoGlosado) return;
+            var produzido = parseFloat(form.dataset.produzido) || 0;
+
+            function atualizar() {
+                var pago = window.Moeda.ler(campoPago.value) || 0;  // aceita 150.000,00
+                var glosado = window.Moeda.ler(campoGlosado.value) || 0;
+                var tocado = pago !== 0 || glosado !== 0;
+                var diferenca = Math.round((pago + glosado - produzido) * 100) / 100;
+
+                if (tocado && diferenca !== 0) {
+                    var texto = diferenca > 0
+                        ? window.Moeda.emReais(diferenca) + " a mais do que o produzido"
+                        : "faltam " + window.Moeda.emReais(Math.abs(diferenca)) + " sem explicar (nem pago, nem glosado)";
+                    aviso.textContent = "⚠ Pago + Glosado não bate com o Produzido — " + texto;
+                    aviso.style.display = "block";
+                } else {
+                    aviso.style.display = "none";
+                }
+            }
+
+            campoPago.addEventListener("input", atualizar);
+            campoGlosado.addEventListener("input", atualizar);
+            atualizar();
+        })();
+    </script>
+{% endblock %}

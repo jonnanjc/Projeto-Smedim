@@ -1,0 +1,13 @@
+<a class="contato" href="{% url 'mensagens:conversa' item.usuario.pk %}">
+    <span class="bolinha-status {% if item.online %}online{% endif %}"></span>
+    <span class="contato-info">
+        <span class="contato-nome">{{ item.usuario.get_full_name|default:item.usuario.username }}</span>
+        <span class="contato-status">{% if item.online %}Online agora{% else %}Offline{% endif %}</span>
+        {% if item.ultima_mensagem %}
+            <span class="contato-previa">{{ item.ultima_mensagem.texto|truncatechars:60 }}</span>
+        {% endif %}
+    </span>
+    {% if item.nao_lidas %}
+        <span class="badge-nao-lidas">{{ item.nao_lidas }}</span>
+    {% endif %}
+</a>

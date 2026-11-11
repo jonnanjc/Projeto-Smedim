@@ -1,0 +1,77 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Pacientes — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Pacientes</h2>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+            {% if perms.accounts.paciente_excluir %}
+                <a href="{% url 'cadastros:paciente_duplicados' %}">Possíveis duplicados</a>
+            {% endif %}
+            {% if perms.accounts.paciente_cadastrar %}
+                <a href="{% url 'cadastros:paciente_novo' %}" class="botao" style="text-decoration:none;">+ Novo paciente</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <form method="get" style="margin:16px 0;">
+        {% if ver_ocultos %}<input type="hidden" name="ocultos" value="1">{% endif %}
+        <input type="text" name="q" class="campo" style="max-width:320px;display:inline-block;" placeholder="Buscar por nome ou CPF" value="{{ termo }}">
+        <button type="submit" class="botao">Buscar</button>
+    </form>
+
+    {% if ver_ocultos %}
+        <p style="font-size:13px;color:var(--texto-suave);">
+            Cadastros vindos do sistema antigo <strong>só com o nome</strong> (sem CPF, data de nascimento ou telefone).
+            Ficam fora da busca do agendamento; o profissional continua vendo o prontuário deles normalmente.
+            Ao completar o cadastro (editar e preencher nascimento, CPF ou telefone), o paciente volta a aparecer.
+            — <a href="{% url 'cadastros:paciente_lista' %}">voltar para a lista normal</a>
+        </p>
+    {% elif total_ocultos %}
+        <p style="font-size:13px;color:var(--texto-suave);">
+            {{ total_ocultos }} cadastro{{ total_ocultos|pluralize }} do sistema antigo só com o nome não aparece{{ total_ocultos|pluralize:"m" }} aqui —
+            <a href="?ocultos=1">ver esses cadastros</a>
+        </p>
+    {% endif %}
+
+    <table>
+        <tr>
+            <th>Nome</th>
+            <th>CPF</th>
+            <th>Nascimento</th>
+            <th>Convênio</th>
+            <th>Telefone</th>
+            <th>Situação</th>
+            <th></th>
+        </tr>
+        {% for paciente in pagina %}
+            <tr>
+                <td>{{ paciente.nome_completo }}</td>
+                <td>{{ paciente.cpf|default:"—" }}</td>
+                <td>{{ paciente.data_nascimento|date:"d/m/Y"|default:"—" }}</td>
+                <td>
+                    {{ paciente.convenio|default:"Particular" }}
+                    {% if paciente.carteirinha_vencida %}
+                        <span style="color:#c0392b;font-size:12px;font-weight:600;">(carteirinha vencida)</span>
+                    {% endif %}
+                </td>
+                <td>{{ paciente.telefone|default:"—" }}</td>
+                <td>{% if paciente.ativo %}Ativo{% else %}Inativo{% endif %}</td>
+                <td>
+                    {% if perms.accounts.paciente_editar %}
+                        <a href="{% url 'cadastros:paciente_editar' paciente.pk %}">Editar</a>
+                    {% endif %}
+                    {% if user.profissional_id and paciente.ativo %}
+                        · <a href="{% url 'prontuario:prontuario_paciente' paciente.pk %}">Prontuário</a>
+                    {% endif %}
+                    {% if perms.accounts.paciente_excluir %}
+                        · <a href="{% url 'cadastros:paciente_excluir' paciente.pk %}">Excluir</a>
+                    {% endif %}
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="7"><em>Nenhum paciente encontrado.</em></td></tr>
+        {% endfor %}
+    </table>
+    {% include 'accounts/_paginacao.html' %}
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Fechamento mensal — Clínica SMEDIM{% endblock %}
+{% block classe_extra %}larga{% endblock %}
+{% block conteudo %}
+    <div class="relatorio-nav no-imprimir">
+        <a href="?ano={{ mes_anterior_ano }}&mes={{ mes_anterior_mes }}{% if profissional_selecionado %}&profissional={{ profissional_selecionado.pk }}{% endif %}">‹ Mês anterior</a>
+        <input type="month" value="{{ ano }}-{{ mes|stringformat:'02d' }}" style="border:1px solid var(--borda);border-radius:6px;padding:3px 8px;font:inherit;font-size:12.5px;background:var(--bg-cartao);color:var(--texto);" onchange="
+            var p = new URLSearchParams(window.location.search);
+            var partes = this.value.split('-');
+            p.set('ano', partes[0]); p.set('mes', parseInt(partes[1], 10));
+            window.location.search = p.toString();
+        ">
+        <a href="?ano={{ mes_seguinte_ano }}&mes={{ mes_seguinte_mes }}{% if profissional_selecionado %}&profissional={{ profissional_selecionado.pk }}{% endif %}">Mês seguinte ›</a>
+    </div>
+
+    <form method="get" class="barra-filtro no-imprimir">
+        <input type="hidden" name="ano" value="{{ ano }}">
+        <input type="hidden" name="mes" value="{{ mes }}">
+        <strong>Profissional:</strong>
+        <select name="profissional" onchange="this.form.submit()">
+            <option value="">Geral (todos os profissionais)</option>
+            {% for prof in profissionais %}
+                <option value="{{ prof.pk }}" {% if profissional_selecionado.pk == prof.pk %}selected{% endif %}>
+                    {{ prof.nome }}{% if prof.eh_proprietario %} (proprietário){% endif %}
+                </option>
+            {% endfor %}
+        </select>
+    </form>
+
+    <div class="relatorio-pagina">
+        <div class="relatorio-topo">
+            <div class="relatorio-marca">
+                <div class="relatorio-selo">S</div>
+                <div>
+                    <div class="relatorio-nome-clinica">Clínica SMEDIM</div>
+                    <div class="relatorio-subtitulo-marca">Fechamento de caixa</div>
+                </div>
+            </div>
+            <div class="relatorio-titulo">
+                <h2>Fechamento Mensal{% if profissional_selecionado and not profissional_selecionado.eh_proprietario %} — {{ profissional_selecionado.nome }}{% endif %}</h2>
+                <div class="relatorio-periodo">{{ data_inicio|date:"F \d\e Y"|capfirst }} · {{ data_inicio|date:"d/m" }} a {{ data_fim|date:"d/m" }}</div>
+                <div class="relatorio-gerado">Gerado em {% now "d/m/Y" %} às {% now "H:i" %} por {{ user.get_full_name|default:user.username }}</div>
+            </div>
+        </div>
+
+        {% include "financeiro/_fechamento_secoes.html" with epoca="no mês" %}
+
+        <div class="rodape-relatorio"><span>Clínica SMEDIM — documento interno</span><span>{{ data_inicio|date:"m/Y" }}</span></div>
+    </div>
+
+    <button type="button" class="botao-imprimir no-imprimir" onclick="window.print()">🖨️ Imprimir este fechamento</button>
+{% endblock %}

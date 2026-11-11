@@ -1,0 +1,11 @@
+{% extends "accounts/base.html" %}
+{% block titulo %}Fila de espera — Clínica SMEDIM{% endblock %}
+{% block conteudo %}
+    {# Recarrega sozinha pra lista acompanhar quem chega e quem é chamado. #}
+    <meta http-equiv="refresh" content="30">
+    <h2 style="margin:0 0 4px;">Fila de espera</h2>
+    <p style="font-size:13px;color:var(--texto-suave);">Atualiza sozinha a cada 30 segundos.
+        {% if perms.accounts.fila_chamar_senha and not user.profissional_id %}<a href="{% url 'fila:painel_chamada' %}">Ir para o painel de chamada</a>.{% endif %}
+    </p>
+    {% include "fila/_fila_espera_tabela.html" %}
+{% endblock %}
